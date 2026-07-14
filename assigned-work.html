@@ -3,36 +3,170 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MasterFlow - My assigned work</title>
+  <meta
+    name="description"
+    content="MasterFlow receiver workspace with automatically prioritized ticket work."
+  >
+  <title>MasterFlow - Recommended Work</title>
   <link rel="stylesheet" href="assets/css/styles.css">
 </head>
-<body class="workspace-page" data-page="assigned-work">
+
+<body
+  class="workspace-page receiver-workspace"
+  data-page="assigned-work"
+>
   <div class="content-shell">
     <main>
       <div class="page-heading">
-        <div><h1>My assigned work</h1><p>A single priority inbox for tickets, approvals, and freight decisions that require your action.</p></div>
+        <div>
+          <div class="eyebrow">Ticket receiver workspace</div>
+          <h1>Recommended work</h1>
+          <p>
+            MasterFlow ranks active tickets by operational impact,
+            SLA risk, and whether you can take action now.
+          </p>
+        </div>
+
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="ticket-queues.html">
+            View team queues
+          </a>
+        </div>
       </div>
 
-      <section class="kpi-grid" aria-label="Assigned work summary">
-        <div class="kpi"><div class="kpi-label">Assigned to me</div><div class="kpi-value" id="assignedCount">0</div><div class="kpi-meta">Sorted by operational risk</div></div>
-        <div class="kpi"><div class="kpi-label">Tickets</div><div class="kpi-value" id="assignedTicketCount">0</div><div class="kpi-meta">Support and approvals</div></div>
-        <div class="kpi"><div class="kpi-label">Freight decisions</div><div class="kpi-value" id="assignedFreightCount">0</div><div class="kpi-meta good" id="assignedFreightMeta">$0 potential savings</div></div>
-        <div class="kpi"><div class="kpi-label">SLA at risk</div><div class="kpi-value" id="assignedRiskCount">0</div><div class="kpi-meta warn">Act before the due time</div></div>
+      <section
+        class="receiver-stat-grid"
+        aria-label="Smart ticket views"
+      >
+        <button
+          class="receiver-stat receiver-stat-critical"
+          type="button"
+          data-view="critical"
+        >
+          <span class="receiver-stat-label">Critical operations</span>
+          <strong id="criticalCount">0</strong>
+          <small>Work that may stop operations</small>
+        </button>
+
+        <button
+          class="receiver-stat receiver-stat-risk"
+          type="button"
+          data-view="risk"
+        >
+          <span class="receiver-stat-label">SLA risk</span>
+          <strong id="assignedRiskCount">0</strong>
+          <small>Due or overdue within one hour</small>
+        </button>
+
+        <button
+          class="receiver-stat receiver-stat-ready"
+          type="button"
+          data-view="ready"
+        >
+          <span class="receiver-stat-label">Ready to work</span>
+          <strong id="readyCount">0</strong>
+          <small>You can move these forward now</small>
+        </button>
+
+        <button
+          class="receiver-stat receiver-stat-waiting"
+          type="button"
+          data-view="waiting"
+        >
+          <span class="receiver-stat-label">Waiting on requester</span>
+          <strong id="waitingCount">0</strong>
+          <small>Blocked until an employee responds</small>
+        </button>
+      </section>
+
+      <section class="card receiver-priority-card mt-18">
+        <div class="card-header">
+          <div>
+            <h2>Work these next</h2>
+            <p>
+              Recommended using operational impact, SLA timing,
+              assignment, and readiness.
+            </p>
+          </div>
+
+          <span class="badge badge-teal">AI prioritized</span>
+        </div>
+
+        <div class="card-body">
+          <div
+            class="receiver-recommended-list"
+            id="recommendedWorkList"
+            aria-live="polite"
+          ></div>
+        </div>
       </section>
 
       <section class="card mt-18">
-        <div class="card-header"><div><h2>Priority inbox</h2><p>Only work that needs a person should appear here.</p></div><span class="badge badge-teal">Smart priority</span></div>
+        <div class="card-header">
+          <div>
+            <h2>Active assigned tickets</h2>
+            <p>
+              Search all active work or switch to a focused smart view.
+            </p>
+          </div>
+
+          <span class="badge badge-gray" id="activeTicketCount">
+            0 active
+          </span>
+        </div>
+
         <div class="card-body">
           <div class="toolbar">
-            <div class="toolbar-left"><input class="control search-control" id="assignedSearch" type="search" placeholder="Search assigned work" aria-label="Search assigned work"></div>
-            <div class="toolbar-right"><select class="control" id="assignedTypeFilter" aria-label="Filter assigned work by type"><option value="all">All work types</option><option value="ticket">Tickets</option><option value="freight">Freight</option></select></div>
+            <div class="toolbar-left">
+              <input
+                class="control search-control"
+                id="assignedSearch"
+                type="search"
+                placeholder="Search tickets, queues, people, or status"
+                aria-label="Search assigned tickets"
+              >
+            </div>
+
+            <div class="toolbar-right">
+              <select
+                class="control"
+                id="assignedViewFilter"
+                aria-label="Filter assigned tickets"
+              >
+                <option value="all">All active tickets</option>
+                <option value="critical">Critical operations</option>
+                <option value="risk">SLA risk</option>
+                <option value="ready">Ready to work</option>
+                <option value="waiting">Waiting on requester</option>
+              </select>
+            </div>
           </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Work item</th><th>Type</th><th>Priority</th><th>Status</th><th>Due</th><th>Value / SLA</th></tr></thead>
-            <tbody id="assignedWorkBody"></tbody>
-          </table>
+
+          <div
+            class="receiver-ticket-list"
+            id="assignedWorkCards"
+            aria-live="polite"
+          ></div>
+
+          <details class="receiver-table-details">
+            <summary>Show detailed ticket table</summary>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ticket</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Current owner</th>
+                    <th>SLA</th>
+                  </tr>
+                </thead>
+
+                <tbody id="assignedWorkBody"></tbody>
+              </table>
+            </div>
+          </details>
         </div>
       </section>
     </main>

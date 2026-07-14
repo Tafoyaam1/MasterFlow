@@ -305,26 +305,30 @@
         "Begin with the reported symptom, verify power and connectivity, then check the shared print queue, device, network, or affected application.",
 
       questions: [
-        {
+         {
           id: "symptom",
           label: "Observed symptom",
+
           reportLabel:
-            "Observed behavior",
+            "Observed printer behavior",
 
           question:
-            "Which best describes what is happening?",
+            "Which best describes the printer problem?",
 
           why:
-            "The exact symptom gives the Help Desk a useful starting point instead of only saying that something is not working.",
+            "This identifies the correct request path and gives the receiving team a useful troubleshooting starting point.",
 
           type: "select",
 
           options: [
             "No power or lights",
             "Offline or disconnected",
-            "Job sends but nothing prints",
+            "Print job sends but nothing prints",
             "Paper jam or feed problem",
-            "Slow, intermittent, error, or other"
+            "Ink, toner, or ribbon is getting low",
+            "Ink, toner, or ribbon is completely out",
+            "Print is blank, faded, streaked, or incorrect",
+            "Error message or something else"
           ],
 
           signals: {
@@ -332,7 +336,8 @@
               "no power",
               "no lights",
               "won't turn on",
-              "will not turn on"
+              "will not turn on",
+              "does not turn on"
             ],
 
             "Offline or disconnected": [
@@ -341,29 +346,58 @@
               "not connected"
             ],
 
-            "Job sends but nothing prints": [
-              "job sends",
+            "Print job sends but nothing prints": [
+              "job sends but nothing prints",
               "nothing prints",
               "print job stuck",
-              "stays in the queue"
+              "stays in the queue",
+              "stuck in the queue"
             ],
 
             "Paper jam or feed problem": [
               "paper jam",
               "jamming",
               "won't feed",
-              "will not feed"
+              "will not feed",
+              "feed problem"
             ],
 
-            "Slow, intermittent, error, or other": [
-              "slow",
-              "intermittent",
+            "Ink, toner, or ribbon is getting low": [
+              "running low",
+              "getting low",
+              "low on ink",
+              "low on toner",
+              "low on ribbon",
+              "almost out"
+            ],
+
+            "Ink, toner, or ribbon is completely out": [
+              "completely out",
+              "out of ink",
+              "out of toner",
+              "out of ribbon",
+              "no ink",
+              "no toner",
+              "no ribbon"
+            ],
+
+            "Print is blank, faded, streaked, or incorrect": [
+              "blank print",
+              "prints blank",
+              "faded",
+              "streaked",
+              "poor print quality",
+              "wrong color",
+              "incorrect print"
+            ],
+
+            "Error message or something else": [
               "error message",
-              "error code"
+              "error code",
+              "printer error"
             ]
           }
         },
-
         {
           id: "affectedScope",
           label: "Affected scope",
