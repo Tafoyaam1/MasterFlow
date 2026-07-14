@@ -390,10 +390,19 @@
 
     const now = new Date();
     const ticket = Store.addTicket({
-      title: titleFor(values),
-      description: values.description || draft.text,
+      title:
+        draft.receiverBrief?.title ||
+        titleFor(values),
+
+      description:
+        draft.receiverBrief
+          ?.observedSituation ||
+        values.description ||
+        draft.text,
       category: `${activeTemplate.catalog} / ${activeTemplate.name}`,
-      priority: activeTemplate.priority,
+      priority:
+        draft.requestPlan?.priority ||
+        activeTemplate.priority,
       queue: activeTemplate.queue,
       requester: Store.CURRENT_USER.name,
       status: activeTemplate.id === "general-triage" ? "Triage" : "New",
@@ -406,7 +415,27 @@
         requestTemplateId: activeTemplate.id,
         requestTemplateName: activeTemplate.name,
         resolutionTargetHours: activeTemplate.resolutionSlaHours,
-        ...values
+        ...values,
+        receiverBrief:
+          draft.receiverBrief || null,
+
+        diagnosticAnswers:
+          draft.diagnosticAnswers || {},
+
+        diagnosticDetails:
+          draft.diagnosticDetails || {},
+
+        routingReadiness:
+          draft.routingReadiness || null,
+
+        workReadiness:
+          draft.workReadiness || null,
+
+        reportingData:
+          draft.reportingData || null,
+
+        clarificationCount:
+          draft.clarificationCount || 0,        
       },
       historyText: `Ticket created through Smart Request and routed to ${activeTemplate.queue}.`
     });

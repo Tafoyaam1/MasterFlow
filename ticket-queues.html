@@ -3,49 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MasterFlow - Ticket queues</title>
-  <link rel="stylesheet" href="assets/css/styles.css">
+  <meta http-equiv="refresh" content="0; url=assigned-work.html">
+  <title>MasterFlow - Opening Work Center</title>
+  <script>
+    window.location.replace("assigned-work.html");
+  </script>
 </head>
-<body class="workspace-page" data-page="ticket-queues">
-  <div class="content-shell">
-    <main>
-      <div class="page-heading">
-        <div><h1>Ticket queues</h1><p>Managers and receivers can see ownership, self-assign work, correct priority, and intervene before an SLA breach.</p></div>
-        <div class="page-actions"><button class="btn btn-danger" type="button" data-open-critical>+ Create P1 incident</button></div>
-      </div>
-
-      <section class="kpi-grid" aria-label="Queue summary">
-        <div class="kpi"><div class="kpi-label">Open backlog</div><div class="kpi-value" id="queueOpenCount">0</div><div class="kpi-meta">Across visible queues</div></div>
-        <div class="kpi"><div class="kpi-label">Unassigned</div><div class="kpi-value" id="queueUnassignedCount">0</div><div class="kpi-meta warn">Needs an owner</div></div>
-        <div class="kpi"><div class="kpi-label">SLA at risk</div><div class="kpi-value" id="queueRiskCount">0</div><div class="kpi-meta warn">Less than one hour</div></div>
-        <div class="kpi"><div class="kpi-label">Active P1 incidents</div><div class="kpi-value" id="queueP1Count">0</div><div class="kpi-meta danger">Immediate attention</div></div>
-      </section>
-
-      <section class="queue-grid mt-18" id="queueCards" aria-label="Queue cards"></section>
-
-      <section class="card mt-18">
-        <div class="card-header"><div><h2>Queue work</h2><p>AI routing remains visible and reversible by authorized staff.</p></div><span class="badge badge-blue">Role controlled</span></div>
-        <div class="card-body">
-          <div class="toolbar">
-            <div class="toolbar-left"><input class="control search-control" id="queueSearch" type="search" placeholder="Search ticket, requester, or queue" aria-label="Search queue tickets"></div>
-            <div class="toolbar-right">
-              <select class="control" id="queueFilter" aria-label="Filter by queue"><option value="all">All queues</option></select>
-              <select class="control" id="queueStatusFilter" aria-label="Filter queue tickets"><option value="open">Open tickets</option><option value="all">All tickets</option><option value="unassigned">Unassigned</option><option value="sla">SLA at risk</option></select>
-            </div>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Ticket</th><th>Priority</th><th>Queue</th><th>Requester</th><th>Status</th><th>Assignee</th><th>SLA</th><th>Action</th></tr></thead>
-            <tbody id="queueTicketsBody"></tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <script src="assets/js/store.js" defer></script>
-  <script src="assets/js/layout.js" defer></script>
-  <script src="assets/js/pages/ticket-queues.js" defer></script>
+<body>
+  <p>Opening <a href="assigned-work.html">MasterFlow Work Center</a>...</p>
 </body>
 </html>

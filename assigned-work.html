@@ -5,87 +5,80 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta
     name="description"
-    content="MasterFlow receiver workspace with automatically prioritized ticket work."
+    content="MasterFlow Work Center for prioritized personal and team ticket management."
   >
-  <title>MasterFlow - Recommended Work</title>
+  <title>MasterFlow - Work Center</title>
   <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 
-<body
-  class="workspace-page receiver-workspace"
-  data-page="assigned-work"
->
+<body class="workspace-page work-center-page" data-page="assigned-work">
   <div class="content-shell">
     <main>
       <div class="page-heading">
         <div>
           <div class="eyebrow">Ticket receiver workspace</div>
-          <h1>Recommended work</h1>
+          <h1>Work Center</h1>
           <p>
-            MasterFlow ranks active tickets by operational impact,
-            SLA risk, and whether you can take action now.
+            One place to see what needs your attention, what your team owns,
+            what is unassigned, and what may miss SLA.
           </p>
         </div>
 
         <div class="page-actions">
-          <a class="btn btn-secondary" href="ticket-queues.html">
-            View team queues
-          </a>
+          <button class="btn btn-danger" type="button" data-open-critical>
+            + Create P1 incident
+          </button>
         </div>
       </div>
 
-      <section
-        class="receiver-stat-grid"
-        aria-label="Smart ticket views"
-      >
-        <button
-          class="receiver-stat receiver-stat-critical"
-          type="button"
-          data-view="critical"
-        >
-          <span class="receiver-stat-label">Critical operations</span>
-          <strong id="criticalCount">0</strong>
-          <small>Work that may stop operations</small>
-        </button>
+      <section class="card work-view-card" aria-label="Work Center views">
+        <div class="card-body">
+          <div class="work-view-tabs" role="tablist" aria-label="Choose a work view">
+            <button class="work-view-button active" type="button" data-work-view="recommended" role="tab" aria-selected="true">
+              <span>Recommended</span>
+              <strong id="count-recommended">0</strong>
+            </button>
 
-        <button
-          class="receiver-stat receiver-stat-risk"
-          type="button"
-          data-view="risk"
-        >
-          <span class="receiver-stat-label">SLA risk</span>
-          <strong id="assignedRiskCount">0</strong>
-          <small>Due or overdue within one hour</small>
-        </button>
+            <button class="work-view-button" type="button" data-work-view="mine" role="tab" aria-selected="false">
+              <span>My work</span>
+              <strong id="count-mine">0</strong>
+            </button>
 
-        <button
-          class="receiver-stat receiver-stat-ready"
-          type="button"
-          data-view="ready"
-        >
-          <span class="receiver-stat-label">Ready to work</span>
-          <strong id="readyCount">0</strong>
-          <small>You can move these forward now</small>
-        </button>
+            <button class="work-view-button" type="button" data-work-view="team" role="tab" aria-selected="false">
+              <span>Team work</span>
+              <strong id="count-team">0</strong>
+            </button>
 
-        <button
-          class="receiver-stat receiver-stat-waiting"
-          type="button"
-          data-view="waiting"
-        >
-          <span class="receiver-stat-label">Waiting on requester</span>
-          <strong id="waitingCount">0</strong>
-          <small>Blocked until an employee responds</small>
-        </button>
+            <button class="work-view-button" type="button" data-work-view="unassigned" role="tab" aria-selected="false">
+              <span>Needs assignment</span>
+              <strong id="count-unassigned">0</strong>
+            </button>
+
+            <button class="work-view-button" type="button" data-work-view="risk" role="tab" aria-selected="false">
+              <span>SLA risk</span>
+              <strong id="count-risk">0</strong>
+            </button>
+
+            <button class="work-view-button" type="button" data-work-view="waiting" role="tab" aria-selected="false">
+              <span>Waiting on requester</span>
+              <strong id="count-waiting">0</strong>
+            </button>
+
+            <button class="work-view-button" type="button" data-work-view="completed" role="tab" aria-selected="false">
+              <span>Completed</span>
+              <strong id="count-completed">0</strong>
+            </button>
+          </div>
+        </div>
       </section>
 
-      <section class="card receiver-priority-card mt-18">
+      <section class="card work-priority-card mt-18" id="recommendedSection">
         <div class="card-header">
           <div>
             <h2>Work these next</h2>
             <p>
-              Recommended using operational impact, SLA timing,
-              assignment, and readiness.
+              MasterFlow recommends the next tickets using operational impact,
+              SLA timing, ownership, and readiness.
             </p>
           </div>
 
@@ -93,26 +86,38 @@
         </div>
 
         <div class="card-body">
-          <div
-            class="receiver-recommended-list"
-            id="recommendedWorkList"
-            aria-live="polite"
-          ></div>
+          <div class="work-list" id="recommendedWorkList" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="card mt-18" id="teamQueueSection" hidden>
+        <div class="card-header">
+          <div>
+            <h2>Team queue health</h2>
+            <p>
+              Select a queue to narrow the Work Center to that team.
+            </p>
+          </div>
+
+          <span class="badge badge-blue">Authorized queues</span>
+        </div>
+
+        <div class="card-body">
+          <div class="queue-grid" id="workCenterQueueCards" aria-label="Team queue summary"></div>
         </div>
       </section>
 
       <section class="card mt-18">
         <div class="card-header">
           <div>
-            <h2>Active assigned tickets</h2>
-            <p>
-              Search all active work or switch to a focused smart view.
+            <h2 id="workListTitle">Prioritized work</h2>
+            <p id="workListDescription">
+              MasterFlow ranks active tickets by operational impact, SLA timing,
+              ownership, and readiness.
             </p>
           </div>
 
-          <span class="badge badge-gray" id="activeTicketCount">
-            0 active
-          </span>
+          <span class="badge badge-gray" id="visibleTicketCount">0 shown</span>
         </div>
 
         <div class="card-body">
@@ -120,35 +125,27 @@
             <div class="toolbar-left">
               <input
                 class="control search-control"
-                id="assignedSearch"
+                id="workCenterSearch"
                 type="search"
                 placeholder="Search tickets, queues, people, or status"
-                aria-label="Search assigned tickets"
+                aria-label="Search Work Center tickets"
               >
             </div>
 
             <div class="toolbar-right">
               <select
                 class="control"
-                id="assignedViewFilter"
-                aria-label="Filter assigned tickets"
+                id="workCenterQueueFilter"
+                aria-label="Filter by queue"
               >
-                <option value="all">All active tickets</option>
-                <option value="critical">Critical operations</option>
-                <option value="risk">SLA risk</option>
-                <option value="ready">Ready to work</option>
-                <option value="waiting">Waiting on requester</option>
+                <option value="all">All authorized queues</option>
               </select>
             </div>
           </div>
 
-          <div
-            class="receiver-ticket-list"
-            id="assignedWorkCards"
-            aria-live="polite"
-          ></div>
+          <div class="work-list" id="workCenterList" aria-live="polite"></div>
 
-          <details class="receiver-table-details">
+          <details class="work-table-details">
             <summary>Show detailed ticket table</summary>
 
             <div class="table-wrap">
@@ -158,12 +155,13 @@
                     <th>Ticket</th>
                     <th>Priority</th>
                     <th>Status</th>
-                    <th>Current owner</th>
+                    <th>Queue</th>
+                    <th>Owner</th>
                     <th>SLA</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
-
-                <tbody id="assignedWorkBody"></tbody>
+                <tbody id="workCenterTableBody"></tbody>
               </table>
             </div>
           </details>

@@ -1615,29 +1615,36 @@ body.page-home:has(.chat-panel.open)
     grid-template-columns: 1fr;
   }
 }
+
 /* =========================================================
-   MasterFlow Ticket Receiver Workspace
-   Recommended work and smart ticket views
+   MasterFlow Work Center
+   Unified personal and team ticket workspace
    ========================================================= */
 
-.receiver-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+.work-view-card .card-body {
+  padding-top: 18px;
 }
 
-.receiver-stat {
-  min-width: 0;
-  min-height: 132px;
+.work-view-tabs {
   display: grid;
-  align-content: start;
-  gap: 4px;
-  padding: 17px;
+  grid-template-columns: repeat(7, minmax(125px, 1fr));
+  gap: 9px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.work-view-button {
+  min-width: 125px;
+  min-height: 74px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 13px;
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: 13px;
   background: #fff;
   color: var(--ink);
-  box-shadow: var(--shadow-sm);
   text-align: left;
   transition:
     transform 120ms ease,
@@ -1645,102 +1652,99 @@ body.page-home:has(.chat-panel.open)
     box-shadow 120ms ease;
 }
 
-.receiver-stat:hover {
-  transform: translateY(-2px);
+.work-view-button:hover {
+  transform: translateY(-1px);
   border-color: var(--line-strong);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
 }
 
-.receiver-stat.active {
+.work-view-button.active {
   border-color: var(--teal);
-  box-shadow:
-    0 0 0 3px rgba(11, 123, 120, 0.08),
-    var(--shadow-sm);
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+  box-shadow: inset 0 0 0 1px rgba(11, 123, 120, 0.08);
 }
 
-.receiver-stat-label {
-  color: var(--muted);
+.work-view-button span {
   font-size: 11px;
   font-weight: 850;
+  line-height: 1.25;
 }
 
-.receiver-stat strong {
-  margin-top: 1px;
-  font-size: 30px;
-  line-height: 1.05;
-  letter-spacing: -0.04em;
+.work-view-button strong {
+  min-width: 28px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
 }
 
-.receiver-stat small {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.4;
+.work-view-button.active strong {
+  background: #fff;
+  color: var(--teal-dark);
 }
 
-.receiver-stat-critical {
-  border-top: 4px solid var(--red);
-}
-
-.receiver-stat-risk {
-  border-top: 4px solid var(--amber);
-}
-
-.receiver-stat-ready {
-  border-top: 4px solid var(--teal);
-}
-
-.receiver-stat-waiting {
-  border-top: 4px solid var(--purple);
-}
-
-.receiver-recommended-list,
-.receiver-ticket-list {
+.work-list {
   display: grid;
   gap: 12px;
 }
 
-.receiver-recommended-item {
+.work-card {
   display: grid;
-  grid-template-columns:
-    58px
-    minmax(0, 1fr)
-    auto;
-  gap: 15px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
   align-items: center;
   padding: 16px;
   border: 1px solid var(--line);
   border-left-width: 5px;
   border-radius: 14px;
   background: #fff;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
 }
 
-.receiver-recommended-item.is-critical,
-.receiver-ticket-card.is-critical {
+.work-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.work-card-recommended {
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+}
+
+.work-card.is-critical {
   border-left-color: var(--red);
   background: #fffafa;
 }
 
-.receiver-recommended-item.is-risk,
-.receiver-ticket-card.is-risk {
+.work-card.is-risk {
   border-left-color: var(--amber);
   background: #fffcf7;
 }
 
-.receiver-recommended-item.is-ready,
-.receiver-ticket-card.is-ready {
+.work-card.is-ready {
   border-left-color: var(--teal);
 }
 
-.receiver-recommended-item.is-waiting,
-.receiver-ticket-card.is-waiting {
+.work-card.is-waiting {
   border-left-color: var(--purple);
   background: #fdfbff;
 }
 
-.receiver-rank {
+.work-card.is-completed {
+  border-left-color: var(--green);
+  background: #fbfefc;
+}
+
+.work-rank {
   width: 48px;
-  height: 56px;
+  height: 58px;
   display: grid;
   place-items: center;
   align-content: center;
@@ -1749,25 +1753,24 @@ body.page-home:has(.chat-panel.open)
   color: #fff;
 }
 
-.receiver-rank small {
+.work-rank small {
   font-size: 8px;
   font-weight: 850;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.receiver-rank strong {
+.work-rank strong {
   margin-top: -1px;
   font-size: 24px;
   line-height: 1;
 }
 
-.receiver-recommended-main,
-.receiver-ticket-card-main {
+.work-card-main {
   min-width: 0;
 }
 
-.receiver-card-topline {
+.work-card-topline {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1775,13 +1778,13 @@ body.page-home:has(.chat-panel.open)
   gap: 8px;
 }
 
-.receiver-due {
+.work-due {
   color: var(--muted);
   font-size: 11px;
   font-weight: 800;
 }
 
-.receiver-ticket-title {
+.work-ticket-title {
   max-width: 100%;
   margin-top: 9px;
   padding: 0;
@@ -1794,26 +1797,26 @@ body.page-home:has(.chat-panel.open)
   text-align: left;
 }
 
-.receiver-ticket-title:hover {
+.work-ticket-title:hover {
   color: var(--blue);
   text-decoration: underline;
 }
 
-.receiver-ticket-reference {
+.work-ticket-reference {
   margin-top: 3px;
   color: var(--muted);
   font-size: 10px;
 }
 
-.receiver-impact {
-  max-width: 780px;
+.work-impact {
+  max-width: 800px;
   margin: 10px 0 0;
   color: #415163;
   font-size: 12px;
   line-height: 1.5;
 }
 
-.receiver-next-action {
+.work-next-action {
   display: grid;
   gap: 3px;
   margin-top: 12px;
@@ -1823,30 +1826,30 @@ body.page-home:has(.chat-panel.open)
   color: #164985;
 }
 
-.receiver-next-action.compact {
+.work-next-action.compact {
   margin-top: 10px;
 }
 
-.receiver-next-action small {
+.work-next-action small {
   font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.receiver-next-action strong {
+.work-next-action strong {
   font-size: 12px;
   line-height: 1.45;
 }
 
-.receiver-reason-list {
+.work-reason-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 10px;
 }
 
-.receiver-reason-list span {
+.work-reason-list span {
   padding: 4px 7px;
   border-radius: 999px;
   background: var(--surface-3);
@@ -1855,30 +1858,7 @@ body.page-home:has(.chat-panel.open)
   font-weight: 800;
 }
 
-.receiver-open-button {
-  white-space: nowrap;
-}
-
-.receiver-ticket-card {
-  display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto;
-  gap: 16px;
-  align-items: center;
-  padding: 15px 16px;
-  border: 1px solid var(--line);
-  border-left-width: 4px;
-  border-radius: 13px;
-  background: #fff;
-}
-
-.receiver-ticket-card:hover {
-  border-color: var(--line-strong);
-  box-shadow: var(--shadow-sm);
-}
-
-.receiver-card-meta {
+.work-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1888,16 +1868,27 @@ body.page-home:has(.chat-panel.open)
   font-size: 10px;
 }
 
-.receiver-card-meta strong {
+.work-meta strong {
   color: var(--ink);
 }
 
-.receiver-table-details {
+.work-card-actions {
+  min-width: 118px;
+  display: grid;
+  gap: 8px;
+}
+
+.work-card-actions .btn {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.work-table-details {
   margin-top: 18px;
   border-top: 1px solid var(--line);
 }
 
-.receiver-table-details summary {
+.work-table-details summary {
   padding: 14px 0 4px;
   color: var(--blue);
   font-size: 11px;
@@ -1905,51 +1896,54 @@ body.page-home:has(.chat-panel.open)
   cursor: pointer;
 }
 
-.receiver-table-details summary:hover {
+.work-table-details summary:hover {
   text-decoration: underline;
 }
 
-.receiver-table-details .table-wrap {
+.work-table-details .table-wrap {
   margin-top: 10px;
   border: 1px solid var(--line);
   border-radius: 12px;
 }
 
-@media (max-width: 1100px) {
-  .receiver-stat-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+#workCenterQueueCards .queue-card {
+  width: 100%;
+  text-align: left;
+}
+
+@media (max-width: 1280px) {
+  .work-view-tabs {
+    grid-template-columns: repeat(4, minmax(145px, 1fr));
   }
 }
 
 @media (max-width: 760px) {
-  .receiver-stat-grid {
+  .work-view-tabs {
+    grid-template-columns: repeat(2, minmax(145px, 1fr));
+  }
+
+  .work-card,
+  .work-card-recommended {
     grid-template-columns: 1fr;
   }
 
-  .receiver-stat {
-    min-height: 110px;
+  .work-rank {
+    width: 44px;
+    height: 50px;
   }
 
-  .receiver-recommended-item {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
-
-  .receiver-recommended-item
-    .receiver-open-button {
-    grid-column: 1 / -1;
+  .work-card-actions {
     width: 100%;
   }
 
-  .receiver-ticket-card {
-    grid-template-columns: 1fr;
-  }
-
-  .receiver-ticket-card > .btn {
-    width: 100%;
-  }
-
-  .receiver-card-meta {
+  .work-meta {
     display: grid;
     gap: 5px;
+  }
+}
+
+@media (max-width: 430px) {
+  .work-view-tabs {
+    grid-template-columns: 1fr;
   }
 }

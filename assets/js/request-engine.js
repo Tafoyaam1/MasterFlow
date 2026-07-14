@@ -1,710 +1,992 @@
 (function () {
-  "use strict";
-
-  const Store = window.MasterFlowStore;
-  const UI = window.MasterFlowUI;
-
-  if (!Store || !UI || !UI.layoutReady) return;
-
-  const recommendedList =
-    document.getElementById("recommendedWorkList");
-
-  const ticketCardList =
-    document.getElementById("assignedWorkCards");
-
-  const tableBody =
-    document.getElementById("assignedWorkBody");
-
-  const searchInput =
-    document.getElementById("assignedSearch");
-
-  const viewFilter =
-    document.getElementById("assignedViewFilter");
-
-  const smartViewButtons =
-    Array.from(document.querySelectorAll("[data-view]"));
-
-  const CLOSED_STATUSES =
-    new Set(["Resolved", "Closed", "Cancelled"]);
-
-  function isClosed(ticket) {
-    return CLOSED_STATUSES.has(ticket.status);
-  }
-
-  function isWaitingOnRequester(ticket) {
-    return /waiting on requester|waiting on employee/i.test(
-      String(ticket.status || "")
-    );
-  }
-
-  function minutesUntilDue(ticket) {
-    const dueTime = new Date(ticket.slaDueAt).getTime();
-
-    if (!Number.isFinite(dueTime)) {
-      return Number.POSITIVE_INFINITY;
+    "use strict";
+  
+    const Templates =
+      window.MasterFlowTemplates;
+  
+    const Store =
+      window.MasterFlowStore;
+  
+    if (!Templates) {
+      throw new Error(
+        "MasterFlowTemplates must load before request-engine.js"
+      );
     }
-
-    return Math.round((dueTime - Date.now()) / 60000);
-  }
-
-  function isSlaRisk(ticket) {
-    return !isClosed(ticket) && minutesUntilDue(ticket) <= 60;
-  }
-
-  function bucketFor(ticket) {
-    if (String(ticket.priority).startsWith("P1")) {
-      return "critical";
+  
+    if (!Store) {
+      throw new Error(
+        "MasterFlowStore must load before request-engine.js"
+      );
     }
-
-    if (isWaitingOnRequester(ticket)) {
-      return "waiting";
-    }
-
-    if (isSlaRisk(ticket)) {
-      return "risk";
-    }
-
-    return "ready";
-  }
-
-  function bucketLabel(bucket) {
-    const labels = {
-      critical: "Critical operations",
-      risk: "SLA risk",
-      ready: "Ready to work",
-      waiting: "Waiting on requester"
-    };
-
-    return labels[bucket] || "Active";
-  }
-
-  function bucketBadgeClass(bucket) {
-    const classes = {
-      critical: "badge-red",
-      risk: "badge-amber",
-      ready: "badge-teal",
-      waiting: "badge-purple"
-    };
-
-    return classes[bucket] || "badge-gray";
-  }
-
-  function priorityWeight(priority) {
-    const value = String(priority || "");
-
-    if (value.startsWith("P1")) return 100;
-    if (value.startsWith("P2")) return 60;
-    if (value.startsWith("P3")) return 30;
-    if (value.startsWith("P4")) return 10;
-
-    return 20;
-  }
-
-  function calculateWorkScore(ticket) {
-    let score = priorityWeight(ticket.priority);
-    const minutes = minutesUntilDue(ticket);
-
-    if (minutes < 0) {
-      score += 80;
-    } else if (minutes <= 15) {
-      score += 60;
-    } else if (minutes <= 60) {
-      score += 40;
-    } else if (minutes <= 240) {
-      score += 20;
-    }
-
-    if (ticket.status === "Approval required") {
-      score += 30;
-    }
-
-    if (ticket.status === "Triage") {
-      score += 25;
-    }
-
-    if (ticket.status === "New") {
-      score += 15;
-    }
-
-    if (ticket.assignee === Store.CURRENT_USER.name) {
-      score += 10;
-    }
-
-    if (ticket.assignee === "Unassigned") {
-      score += 15;
-    }
-
+  
+    const MAX_CLARIFICATION_QUESTIONS = 2;
+  
     /*
-     * A ticket waiting on the requester may still need
-     * monitoring, but it should not outrank work the
-     * receiver can complete immediately.
+     * These fields can come from the employee profile.
+     * MasterFlow should not ask the employee for them again.
      */
-    if (isWaitingOnRequester(ticket)) {
-      score -= 50;
+    const PROFILE_FIELDS = new Set([
+      "requestedFor"
+    ]);
+  
+    /*
+     * Attachments should not interrupt the conversational flow.
+     */
+    const NON_CONVERSATIONAL_FIELDS =
+      new Set([
+        "attachments"
+      ]);
+  
+    function clone(value) {
+      if (
+        value === undefined ||
+        value === null
+      ) {
+        return value;
+      }
+  
+      return JSON.parse(
+        JSON.stringify(value)
+      );
     }
-
-    return score;
-  }
-
-  function priorityLabel(priority) {
-    const code = String(priority || "").split(" - ")[0];
-
-    const labels = {
-      P1: "Critical",
-      P2: "High",
-      P3: "Normal",
-      P4: "Low"
-    };
-
-    return labels[code]
-      ? `${labels[code]} (${code})`
-      : String(priority || "Normal");
-  }
-
-  function formatExactDate(value) {
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "No due time";
+  
+    function cleanText(value) {
+      return String(value || "")
+        .replace(/\s+/g, " ")
+        .trim();
     }
-
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit"
-    }).format(date);
-  }
-
-  function dueLabel(ticket) {
-    const minutes = minutesUntilDue(ticket);
-
-    if (!Number.isFinite(minutes)) {
-      return "No due time";
+  
+    function hasValue(value) {
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+  
+      return cleanText(value) !== "";
     }
-
-    if (minutes < -60) {
-      return `Overdue by ${Math.ceil(Math.abs(minutes) / 60)}h`;
-    }
-
-    if (minutes < 0) {
-      return `Overdue by ${Math.abs(minutes)}m`;
-    }
-
-    if (minutes <= 60) {
-      return `Due in ${Math.max(1, minutes)}m`;
-    }
-
-    if (minutes < 1440) {
-      return `Due in ${Math.ceil(minutes / 60)}h`;
-    }
-
-    return `Due ${formatExactDate(ticket.slaDueAt)}`;
-  }
-
-  function recommendedNextAction(ticket) {
-    if (String(ticket.priority).startsWith("P1")) {
-      return "Open the incident and begin the critical response now.";
-    }
-
-    if (ticket.status === "Approval required") {
-      return "Review the request and approve or reject the next step.";
-    }
-
-    if (ticket.status === "Triage") {
-      return "Confirm the correct queue and assign an owner.";
-    }
-
-    if (isWaitingOnRequester(ticket)) {
-      return "Wait for the requester or send a reminder for the missing information.";
-    }
-
-    if (ticket.assignee === "Unassigned") {
-      return "Claim the ticket or assign it to the best available team member.";
-    }
-
-    if (ticket.status === "New") {
-      return "Review the request details and begin work.";
-    }
-
-    if (ticket.status === "In progress") {
-      return "Continue the investigation and post the next update.";
-    }
-
-    return "Review the ticket and complete the next available action.";
-  }
-
-  function businessImpact(ticket) {
-    if (String(ticket.priority).startsWith("P1")) {
-      return "A critical warehouse or shipping process may be blocked.";
-    }
-
-    if (ticket.status === "Approval required") {
-      return "Work cannot continue until an authorized decision is recorded.";
-    }
-
-    if (ticket.status === "Triage") {
-      return "The receiving team is not yet confirmed, so the request cannot progress normally.";
-    }
-
-    if (isWaitingOnRequester(ticket)) {
-      return "Support is blocked until the requester provides more information.";
-    }
-
-    return ticket.description ||
-      "This request is active and ready for review.";
-  }
-
-  function priorityReasons(ticket) {
-    const reasons = [];
-    const minutes = minutesUntilDue(ticket);
-
-    if (String(ticket.priority).startsWith("P1")) {
-      reasons.push("Critical operational impact");
-    }
-
-    if (minutes < 0) {
-      reasons.push("SLA is overdue");
-    } else if (minutes <= 60) {
-      reasons.push("SLA due within one hour");
-    }
-
-    if (ticket.status === "Approval required") {
-      reasons.push("Decision required");
-    }
-
-    if (ticket.status === "Triage") {
-      reasons.push("Routing must be confirmed");
-    }
-
-    if (ticket.assignee === Store.CURRENT_USER.name) {
-      reasons.push("Assigned to you");
-    }
-
-    if (ticket.assignee === "Unassigned") {
-      reasons.push("No owner assigned");
-    }
-
-    if (isWaitingOnRequester(ticket)) {
-      reasons.push("Blocked by missing information");
-    }
-
-    if (!reasons.length) {
-      reasons.push("Ready for action");
-    }
-
-    return reasons.slice(0, 3);
-  }
-
-  function getTickets() {
-    const state = Store.getState();
-
-    return state.tickets
-      .filter((ticket) => !isClosed(ticket))
-      .filter((ticket) => {
-        return (
-          ticket.assignee === Store.CURRENT_USER.name ||
-          ticket.queue === "Megan Delia - Triage" ||
-          String(ticket.priority).startsWith("P1")
+  
+    /*
+     * Shipping-stopped requests always bypass
+     * normal AI classification.
+     */
+    function isShippingStopped(text) {
+      const input =
+        cleanText(text).toLowerCase();
+  
+      const shippingSignal =
+        /\bshipping\b|\bshipment\b|\bmanifest(?:ing)?\b|\boutbound\b/.test(
+          input
         );
-      })
-      .map((ticket) => {
-        return {
-          ticket,
-          bucket: bucketFor(ticket),
-          score: calculateWorkScore(ticket)
-        };
-      })
-      .sort((a, b) => {
-        if (b.score !== a.score) {
-          return b.score - a.score;
+  
+      const stoppedSignal =
+        /\bstopped\b|\bdown\b|\bblocked\b|\bcannot\b|\bcan't\b|\bunable\b|\bnot working\b/.test(
+          input
+        );
+  
+      return (
+        shippingSignal &&
+        stoppedSignal
+      );
+    }
+  
+    /*
+     * Extract values from the employee message,
+     * employee profile, and clarification answers.
+     */
+    function extractFields(
+      text,
+      template,
+      fieldAnswers = {}
+    ) {
+      const extractedFields = {};
+      const extractionDetails = {};
+  
+      (template.fields || []).forEach(
+        (field) => {
+          const hasClarificationAnswer =
+            Object.prototype.hasOwnProperty.call(
+              fieldAnswers,
+              field.id
+            ) &&
+            hasValue(
+              fieldAnswers[field.id]
+            );
+  
+          const result =
+            hasClarificationAnswer
+              ? {
+                  value: cleanText(
+                    fieldAnswers[field.id]
+                  ),
+                  source: "clarification"
+                }
+              : Templates.extract(
+                  text,
+                  field
+                ) || {
+                  value: "",
+                  source: ""
+                };
+  
+          extractedFields[field.id] =
+            result.value || "";
+  
+          extractionDetails[field.id] = {
+            fieldId: field.id,
+            label: field.label,
+            value: result.value || "",
+            source: result.source || "",
+            required: Boolean(
+              field.required
+            ),
+            recommended: Boolean(
+              field.recommended
+            )
+          };
         }
-
-        return (
-          new Date(a.ticket.slaDueAt).getTime() -
-          new Date(b.ticket.slaDueAt).getTime()
+      );
+  
+      return {
+        extractedFields,
+        extractionDetails
+      };
+    }
+  
+    /*
+     * Determine which required fields still
+     * need an employee answer.
+     */
+    function findMissingFields(
+      template,
+      extractedFields
+    ) {
+      return (
+        template.fields || []
+      ).filter((field) => {
+        if (!field.required) {
+          return false;
+        }
+  
+        if (
+          PROFILE_FIELDS.has(field.id)
+        ) {
+          return false;
+        }
+  
+        if (
+          NON_CONVERSATIONAL_FIELDS.has(
+            field.id
+          )
+        ) {
+          return false;
+        }
+  
+        return !hasValue(
+          extractedFields[field.id]
         );
       });
-  }
-
-  function renderCounts(items) {
-    const criticalCount =
-      items.filter((item) => item.bucket === "critical").length;
-
-    const riskCount =
-      items.filter((item) => isSlaRisk(item.ticket)).length;
-
-    const readyCount =
-      items.filter((item) => item.bucket === "ready").length;
-
-    const waitingCount =
-      items.filter((item) => item.bucket === "waiting").length;
-
-    document.getElementById("criticalCount").textContent =
-      String(criticalCount);
-
-    document.getElementById("assignedRiskCount").textContent =
-      String(riskCount);
-
-    document.getElementById("readyCount").textContent =
-      String(readyCount);
-
-    document.getElementById("waitingCount").textContent =
-      String(waitingCount);
-
-    document.getElementById("activeTicketCount").textContent =
-      `${items.length} active`;
-  }
-
-  function recommendedMarkup(item, index) {
-    const ticket = item.ticket;
-
-    const reasonMarkup = priorityReasons(ticket)
-      .map((reason) => {
-        return `<span>${UI.escapeHtml(reason)}</span>`;
-      })
-      .join("");
-
-    return `
-      <article class="receiver-recommended-item is-${item.bucket}">
-        <div class="receiver-rank" aria-label="Recommended position ${index + 1}">
-          <small>Work</small>
-          <strong>${index + 1}</strong>
-        </div>
-
-        <div class="receiver-recommended-main">
-          <div class="receiver-card-topline">
-            <span class="badge ${bucketBadgeClass(item.bucket)}">
-              ${UI.escapeHtml(bucketLabel(item.bucket))}
-            </span>
-
-            <span class="receiver-due">
-              ${UI.escapeHtml(dueLabel(ticket))}
-            </span>
-          </div>
-
-          <button
-            class="receiver-ticket-title"
-            type="button"
-            data-ticket-id="${UI.escapeHtml(ticket.id)}"
-          >
-            ${UI.escapeHtml(ticket.title)}
-          </button>
-
-          <div class="receiver-ticket-reference">
-            ${UI.escapeHtml(ticket.number)}
-            ·
-            ${UI.escapeHtml(ticket.queue)}
-          </div>
-
-          <p class="receiver-impact">
-            ${UI.escapeHtml(businessImpact(ticket))}
-          </p>
-
-          <div class="receiver-next-action">
-            <small>Recommended next action</small>
-            <strong>
-              ${UI.escapeHtml(recommendedNextAction(ticket))}
-            </strong>
-          </div>
-
-          <div class="receiver-reason-list">
-            ${reasonMarkup}
-          </div>
-        </div>
-
-        <button
-          class="btn btn-primary btn-sm receiver-open-button"
-          type="button"
-          data-ticket-id="${UI.escapeHtml(ticket.id)}"
-        >
-          Open request
-        </button>
-      </article>
-    `;
-  }
-
-  function renderRecommended(items) {
-    /*
-     * Prefer work that the receiver can act on.
-     * Waiting-on-requester tickets are used only when
-     * there are no actionable tickets available.
-     */
-    const actionable =
-      items.filter((item) => item.bucket !== "waiting");
-
-    const recommended =
-      (actionable.length ? actionable : items).slice(0, 3);
-
-    if (!recommended.length) {
-      recommendedList.innerHTML = `
-        <div class="empty-state">
-          No active assigned tickets need attention.
-        </div>
-      `;
-      return;
     }
-
-    recommendedList.innerHTML = recommended
-      .map(recommendedMarkup)
-      .join("");
-  }
-
-  function ticketCardMarkup(item) {
-    const ticket = item.ticket;
-
-    return `
-      <article class="receiver-ticket-card is-${item.bucket}">
-        <div class="receiver-ticket-card-main">
-          <div class="receiver-card-topline">
-            <span class="badge ${bucketBadgeClass(item.bucket)}">
-              ${UI.escapeHtml(bucketLabel(item.bucket))}
-            </span>
-
-            <span class="receiver-due">
-              ${UI.escapeHtml(dueLabel(ticket))}
-            </span>
-          </div>
-
-          <button
-            class="receiver-ticket-title"
-            type="button"
-            data-ticket-id="${UI.escapeHtml(ticket.id)}"
-          >
-            ${UI.escapeHtml(ticket.title)}
-          </button>
-
-          <div class="receiver-ticket-reference">
-            ${UI.escapeHtml(ticket.number)}
-            ·
-            ${UI.escapeHtml(ticket.queue)}
-          </div>
-
-          <div class="receiver-next-action compact">
-            <small>Next action</small>
-            <strong>
-              ${UI.escapeHtml(recommendedNextAction(ticket))}
-            </strong>
-          </div>
-
-          <div class="receiver-card-meta">
-            <span>
-              Current owner:
-              <strong>${UI.escapeHtml(ticket.assignee)}</strong>
-            </span>
-
-            <span>
-              Requester:
-              <strong>${UI.escapeHtml(ticket.requester)}</strong>
-            </span>
-
-            <span>
-              Priority:
-              <strong>${UI.escapeHtml(priorityLabel(ticket.priority))}</strong>
-            </span>
-          </div>
-        </div>
-
-        <button
-          class="btn btn-secondary btn-sm"
-          type="button"
-          data-ticket-id="${UI.escapeHtml(ticket.id)}"
-        >
-          Open
-        </button>
-      </article>
-    `;
-  }
-
-  function matchesView(item, selectedView) {
-    if (selectedView === "all") return true;
-    if (selectedView === "critical") {
-      return item.bucket === "critical";
-    }
-    if (selectedView === "risk") {
-      return isSlaRisk(item.ticket);
-    }
-    if (selectedView === "ready") {
-      return item.bucket === "ready";
-    }
-    if (selectedView === "waiting") {
-      return item.bucket === "waiting";
-    }
-
-    return true;
-  }
-
-  function filteredItems(items) {
-    const query = searchInput.value.trim().toLowerCase();
-    const selectedView = viewFilter.value;
-
-    return items.filter((item) => {
-      const ticket = item.ticket;
-
-      const haystack = [
-        ticket.number,
-        ticket.title,
-        ticket.description,
-        ticket.queue,
-        ticket.assignee,
-        ticket.requester,
-        ticket.status,
-        ticket.location,
-        recommendedNextAction(ticket)
-      ]
-        .join(" ")
-        .toLowerCase();
-
+  
+    function locationQuestion(
+      field,
+      template
+    ) {
+      if (
+        template.id === "printer-ink"
+      ) {
+        return "What station or area is the printer located at?";
+      }
+  
+      if (
+        template.id ===
+        "printer-connectivity"
+      ) {
+        return "What station or work area is experiencing the issue?";
+      }
+  
+      if (
+        template.id ===
+        "equipment-out-of-service"
+      ) {
+        return "Where is the equipment currently located?";
+      }
+  
+      if (
+        template.id ===
+        "facilities-hvac"
+      ) {
+        return "Which area or station is experiencing the temperature issue?";
+      }
+  
       return (
-        matchesView(item, selectedView) &&
-        (!query || haystack.includes(query))
+        "What location should I include for " +
+        `${field.label.toLowerCase()}?`
       );
-    });
-  }
-
-  function renderTicketCards(items) {
-    if (!items.length) {
-      ticketCardList.innerHTML = `
-        <div class="empty-state">
-          No active tickets match this view.
-        </div>
-      `;
-      return;
     }
-
-    ticketCardList.innerHTML =
-      items.map(ticketCardMarkup).join("");
-  }
-
-  function renderTable(items) {
-    if (!items.length) {
-      tableBody.innerHTML = `
-        <tr>
-          <td colspan="5">
-            <div class="empty-state">
-              No active tickets match this view.
-            </div>
-          </td>
-        </tr>
-      `;
-      return;
-    }
-
-    tableBody.innerHTML = items
-      .map((item) => {
-        const ticket = item.ticket;
-
-        return `
-          <tr>
-            <td>
-              <button
-                class="link-button"
-                type="button"
-                data-ticket-id="${UI.escapeHtml(ticket.id)}"
-              >
-                ${UI.escapeHtml(ticket.title)}
-              </button>
-
-              <span class="subtext">
-                ${UI.escapeHtml(ticket.number)}
-                ·
-                ${UI.escapeHtml(ticket.queue)}
-              </span>
-            </td>
-
-            <td>
-              <span class="badge ${UI.priorityClass(ticket.priority)}">
-                ${UI.escapeHtml(priorityLabel(ticket.priority))}
-              </span>
-            </td>
-
-            <td>
-              <span class="badge ${UI.statusClass(ticket.status)}">
-                ${UI.escapeHtml(ticket.status)}
-              </span>
-            </td>
-
-            <td>
-              ${UI.escapeHtml(ticket.assignee)}
-            </td>
-
-            <td>
-              <strong>${UI.escapeHtml(dueLabel(ticket))}</strong>
-              <span class="subtext">
-                ${UI.escapeHtml(formatExactDate(ticket.slaDueAt))}
-              </span>
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
-  }
-
-  function updateSmartViewButtons() {
-    smartViewButtons.forEach((button) => {
-      button.classList.toggle(
-        "active",
-        button.dataset.view === viewFilter.value
+  
+    function selectQuestion(field) {
+      const options = (
+        field.options || []
+      )
+        .filter(Boolean)
+        .filter(
+          (option) =>
+            !/shipping is stopped/i.test(
+              option
+            )
+        );
+  
+      if (!options.length) {
+        return (
+          "What should I enter for " +
+          `${field.label.toLowerCase()}?`
+        );
+      }
+  
+      if (options.length <= 5) {
+        return (
+          `${field.label}: ` +
+          `${options.join(", ")}?`
+        );
+      }
+  
+      return (
+        "Which option best describes " +
+        `${field.label.toLowerCase()}?`
       );
-    });
-  }
-
-  function openTicket(ticketId) {
-    const ticket = Store.getTicket(ticketId);
-
-    if (ticket) {
-      UI.openTicketDialog(ticket);
     }
-  }
-
-  function handleTicketClick(event) {
-    const button = event.target.closest("[data-ticket-id]");
-
-    if (!button) return;
-
-    openTicket(button.dataset.ticketId);
-  }
-
-  function render() {
-    const items = getTickets();
-    const visibleItems = filteredItems(items);
-
-    renderCounts(items);
-    renderRecommended(items);
-    renderTicketCards(visibleItems);
-    renderTable(visibleItems);
-    updateSmartViewButtons();
-  }
-
-  smartViewButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      viewFilter.value = button.dataset.view;
-      render();
-    });
-  });
-
-  searchInput.addEventListener("input", render);
-  viewFilter.addEventListener("change", render);
-
-  recommendedList.addEventListener(
-    "click",
-    handleTicketClick
-  );
-
-  ticketCardList.addEventListener(
-    "click",
-    handleTicketClick
-  );
-
-  tableBody.addEventListener(
-    "click",
-    handleTicketClick
-  );
-
-  window.addEventListener(
-    "masterflow:state",
-    render
-  );
-
-  render();
-})();
+  
+    /*
+     * Generate a contextual clarification question.
+     */
+    function questionForField(
+      field,
+      template
+    ) {
+      const fieldId = String(
+        field.id || ""
+      ).toLowerCase();
+  
+      const extractor = String(
+        field.extractor || ""
+      ).toLowerCase();
+  
+      if (
+        fieldId.includes("location") ||
+        fieldId.includes("station") ||
+        fieldId.includes("workstation") ||
+        extractor === "location"
+      ) {
+        return locationQuestion(
+          field,
+          template
+        );
+      }
+  
+      if (
+        fieldId === "mhenumber" ||
+        extractor === "assetnumber"
+      ) {
+        return "What is the equipment or MHE number shown on the unit?";
+      }
+  
+      if (fieldId === "lastuser") {
+        return "Who was using the equipment when the issue occurred?";
+      }
+  
+      if (fieldId === "partnumber") {
+        return "What part number should the warehouse verify?";
+      }
+  
+      if (
+        fieldId === "stockchecktype"
+      ) {
+        return "What would you like the warehouse to verify: quantity, date code, condition, packaging, or everything?";
+      }
+  
+      if (
+        fieldId === "pendingorder"
+      ) {
+        return "Is there currently a pending customer order connected to this request?";
+      }
+  
+      if (fieldId === "system") {
+        return "Which system is affected: MERP, OMS, SYQ, API, EDI, the website, or another system?";
+      }
+  
+      if (
+        fieldId === "requestkind"
+      ) {
+        return "Is this something that is broken, a new enhancement, an access request, or a data correction?";
+      }
+  
+      if (
+        fieldId === "impact" ||
+        fieldId === "urgency"
+      ) {
+        return "How is this affecting your work right now?";
+      }
+  
+      if (field.type === "select") {
+        return selectQuestion(field);
+      }
+  
+      if (
+        field.type === "textarea" ||
+        fieldId === "description"
+      ) {
+        return "Can you briefly describe what is happening and what you expected to happen?";
+      }
+  
+      return (
+        "What should I include for " +
+        `${field.label.toLowerCase()}?`
+      );
+    }
+  
+    /*
+     * Ask no more than two questions at once.
+     *
+     * Fields using the same extractor are treated
+     * as the same question.
+     */
+    function buildClarificationQuestions(
+      missingFields,
+      template
+    ) {
+      const seen = new Set();
+  
+      return missingFields
+        .filter((field) => {
+          const key = field.extractor
+            ? `extractor:${field.extractor}`
+            : `field:${field.id}`;
+  
+          if (seen.has(key)) {
+            return false;
+          }
+  
+          seen.add(key);
+          return true;
+        })
+        .slice(
+          0,
+          MAX_CLARIFICATION_QUESTIONS
+        )
+        .map((field, index) => ({
+          id:
+            `clarification-${index + 1}`,
+  
+          fieldId: field.id,
+          label: field.label,
+          fieldType: field.type,
+  
+          options: clone(
+            field.options || []
+          ),
+  
+          question: questionForField(
+            field,
+            template
+          ),
+  
+          required: true
+        }));
+    }
+  
+    function recommendPriority(
+      template,
+      text
+    ) {
+      const input =
+        cleanText(text).toLowerCase();
+  
+      const workStopped =
+        /\bwork stopped\b|\bcannot work\b|\bcan't work\b|\bunable to work\b|\bcompletely down\b|\bwill not move\b|\bwon't move\b/.test(
+          input
+        );
+  
+      const degraded =
+        /\bslow\b|\bslowed\b|\bintermittent\b|\bjamming\b|\bdelay\b|\bworkaround\b/.test(
+          input
+        );
+  
+      if (
+        template.id ===
+          "equipment-out-of-service" &&
+        workStopped
+      ) {
+        return {
+          value: "P2 - High",
+          reason:
+            "Equipment is unusable and may create an operational or safety impact."
+        };
+      }
+  
+      if (workStopped) {
+        return {
+          value: "P2 - High",
+          reason:
+            "The description indicates that work is stopped."
+        };
+      }
+  
+      if (degraded) {
+        return {
+          value: "P3 - Normal",
+          reason:
+            "Work appears to be continuing with reduced efficiency."
+        };
+      }
+  
+      return {
+        value:
+          template.priority ||
+          "P3 - Normal",
+  
+        reason:
+          "The template's standard priority applies."
+      };
+    }
+  
+    function describeBusinessImpact(
+      text,
+      template
+    ) {
+      const input =
+        cleanText(text).toLowerCase();
+  
+      if (
+        /\bmultiple\b|\beveryone\b|\ball stations\b|\bwhole area\b|\bdepartment\b/.test(
+          input
+        )
+      ) {
+        return "Multiple employees or stations may be affected.";
+      }
+  
+      if (
+        /\bcannot\b|\bcan't\b|\bwon't\b|\bunable\b|\bnot working\b|\bstopped\b/.test(
+          input
+        )
+      ) {
+        return "At least one employee, station, or process may be unable to continue working.";
+      }
+  
+      if (
+        /\bslow\b|\bjamming\b|\bintermittent\b|\bdelay\b/.test(
+          input
+        )
+      ) {
+        return "Work can continue, but productivity may be reduced.";
+      }
+  
+      if (
+        template.id === "printer-ink"
+      ) {
+        return "The printer may become unavailable if supplies are not replaced.";
+      }
+  
+      return "Business impact will be confirmed during review.";
+    }
+  
+    function buildKnowledgeRecommendations(
+      template
+    ) {
+      if (!template.article) {
+        return [];
+      }
+  
+      return [
+        {
+          title:
+            template.article.title,
+  
+          summary:
+            template.article.summary,
+  
+          source: "template"
+        }
+      ];
+    }
+  
+    /*
+     * Placeholder for future duplicate-ticket
+     * detection.
+     */
+    function findPossibleDuplicates() {
+      return [];
+    }
+  
+    function buildRequestPlan(
+      template,
+      priority,
+      confidence
+    ) {
+      return {
+        templateId: template.id,
+        templateName: template.name,
+        catalog: template.catalog,
+        queue: template.queue,
+  
+        priority:
+          priority.value,
+  
+        responseSlaHours:
+          template.responseSlaHours,
+  
+        resolutionSlaHours:
+          template.resolutionSlaHours,
+  
+        approvalRequired: Boolean(
+          template.approvalRequired
+        ),
+  
+        routingStatus:
+          template.id ===
+          "general-triage"
+            ? "human-triage"
+            : "ready",
+  
+        classificationConfidence:
+          confidence
+      };
+    }
+  
+    function responseMessage(result) {
+      if (result.requiresP1) {
+        return "Shipping appears to be stopped. I’m opening the immediate P1 workflow instead of creating a normal request.";
+      }
+  
+      if (
+        result.clarificationQuestions
+          .length
+      ) {
+        const firstQuestion =
+          result
+            .clarificationQuestions[0]
+            .question;
+  
+        return (
+          "I found the best request type. " +
+          "Before I prepare it for review, " +
+          `I need one detail: ${firstQuestion}`
+        );
+      }
+  
+      if (
+        result.template.id ===
+        "general-triage"
+      ) {
+        return "I prepared a general request and will route it to Business Enablement so a person can confirm the correct team.";
+      }
+  
+      return (
+        "I found the best request type and " +
+        "gathered everything required. " +
+        `Your ${result.template.name} request is ready for review.`
+      );
+    }
+  
+    /*
+     * Main Request Engine entry point.
+     */
+    function analyze(text) {
+      const originalText =
+        cleanText(text);
+  
+      if (!originalText) {
+        return {
+          ok: false,
+          error:
+            "Please describe what you need help with."
+        };
+      }
+  
+      /*
+       * P1 shipping-stopped workflow.
+       */
+      if (
+        isShippingStopped(originalText)
+      ) {
+        const result = {
+          ok: true,
+  
+          originalText,
+          initialText: originalText,
+  
+          fieldAnswers: {},
+  
+          requiresP1: true,
+          template: null,
+          confidence: 100,
+  
+          extractedFields: {},
+          extractionDetails: {},
+  
+          missingFields: [],
+          clarificationQuestions: [],
+  
+          priority: {
+            value: "P1 - Critical",
+  
+            reason:
+              "Shipping-stopped incidents use the immediate emergency workflow."
+          },
+  
+          businessImpact:
+            "Outbound shipping or manifesting may be stopped.",
+  
+          duplicateTickets: [],
+          knowledgeArticles: [],
+  
+          requestPlan: {
+            routingStatus:
+              "p1-fast-lane",
+  
+            queue:
+              "Warehouse Systems / On-call",
+  
+            priority:
+              "P1 - Critical"
+          }
+        };
+  
+        result.response =
+          responseMessage(result);
+  
+        return result;
+      }
+  
+      const classification =
+        Templates.classify(
+          originalText
+        );
+  
+      const template =
+        classification.template;
+  
+      const extraction =
+        extractFields(
+          originalText,
+          template
+        );
+  
+      const missingFields =
+        findMissingFields(
+          template,
+          extraction.extractedFields
+        );
+  
+      const clarificationQuestions =
+        buildClarificationQuestions(
+          missingFields,
+          template
+        );
+  
+      const priority =
+        recommendPriority(
+          template,
+          originalText
+        );
+  
+      const result = {
+        ok: true,
+  
+        originalText,
+        initialText: originalText,
+  
+        fieldAnswers: {},
+  
+        requiresP1: false,
+  
+        template: clone(template),
+  
+        suggestedTemplate:
+          classification.suggestedTemplate
+            ? clone(
+                classification
+                  .suggestedTemplate
+              )
+            : clone(template),
+  
+        confidence:
+          classification.confidence,
+  
+        confidenceThreshold:
+          classification.threshold,
+  
+        classificationReason:
+          classification.reason,
+  
+        rankedTemplates: clone(
+          classification.ranked || []
+        ),
+  
+        extractedFields:
+          extraction.extractedFields,
+  
+        extractionDetails:
+          extraction.extractionDetails,
+  
+        missingFields:
+          missingFields.map(
+            (field) => ({
+              id: field.id,
+              label: field.label,
+              type: field.type,
+  
+              options: clone(
+                field.options || []
+              )
+            })
+          ),
+  
+        clarificationQuestions,
+  
+        priority,
+  
+        businessImpact:
+          describeBusinessImpact(
+            originalText,
+            template
+          ),
+  
+        duplicateTickets:
+          findPossibleDuplicates(
+            originalText,
+            template
+          ),
+  
+        knowledgeArticles:
+          buildKnowledgeRecommendations(
+            template
+          ),
+  
+        requestPlan:
+          buildRequestPlan(
+            template,
+            priority,
+            classification.confidence
+          )
+      };
+  
+      result.response =
+        responseMessage(result);
+  
+      return result;
+    }
+  
+    /*
+     * Add an employee clarification answer
+     * and rebuild the request analysis.
+     */
+    function continueAnalysis(
+      previousResult,
+      fieldId,
+      answer
+    ) {
+      if (
+        !previousResult ||
+        !previousResult.originalText
+      ) {
+        throw new Error(
+          "A previous request-engine result is required."
+        );
+      }
+  
+      if (
+        previousResult.requiresP1
+      ) {
+        return previousResult;
+      }
+  
+      const cleanAnswer =
+        cleanText(answer);
+  
+      if (!cleanAnswer) {
+        return previousResult;
+      }
+  
+      const template =
+        previousResult.template;
+  
+      if (!template) {
+        throw new Error(
+          "The previous result does not contain a request template."
+        );
+      }
+  
+      const field = (
+        template.fields || []
+      ).find(
+        (item) =>
+          item.id === fieldId
+      );
+  
+      const fieldLabel = field
+        ? field.label
+        : fieldId;
+  
+      const fieldAnswers = {
+        ...(
+          previousResult.fieldAnswers ||
+          {}
+        ),
+  
+        [fieldId]: cleanAnswer
+      };
+  
+      /*
+       * Reuse an answer for another required
+       * field using the same extractor.
+       */
+      if (
+        field &&
+        field.extractor
+      ) {
+        (
+          template.fields || []
+        ).forEach((candidate) => {
+          const sharesExtractor =
+            candidate.id !== field.id &&
+            candidate.required &&
+            candidate.extractor ===
+              field.extractor;
+  
+          if (
+            sharesExtractor &&
+            !hasValue(
+              fieldAnswers[
+                candidate.id
+              ]
+            )
+          ) {
+            fieldAnswers[
+              candidate.id
+            ] = cleanAnswer;
+          }
+        });
+      }
+  
+      const expandedText =
+        `${previousResult.originalText}. ` +
+        `${fieldLabel}: ${cleanAnswer}.`;
+  
+      /*
+       * A clarification answer might reveal
+       * that shipping is stopped.
+       */
+      if (
+        isShippingStopped(expandedText)
+      ) {
+        return analyze(expandedText);
+      }
+  
+      /*
+       * Preserve the original selected template
+       * instead of reclassifying a short answer.
+       */
+      const extraction =
+        extractFields(
+          expandedText,
+          template,
+          fieldAnswers
+        );
+  
+      const missingFields =
+        findMissingFields(
+          template,
+          extraction.extractedFields
+        );
+  
+      const clarificationQuestions =
+        buildClarificationQuestions(
+          missingFields,
+          template
+        );
+  
+      const priority =
+        recommendPriority(
+          template,
+          expandedText
+        );
+  
+      const result = {
+        ...previousResult,
+  
+        ok: true,
+  
+        originalText:
+          expandedText,
+  
+        initialText:
+          previousResult.initialText ||
+          previousResult.originalText,
+  
+        requiresP1: false,
+  
+        template:
+          clone(template),
+  
+        fieldAnswers:
+          clone(fieldAnswers),
+  
+        extractedFields:
+          extraction.extractedFields,
+  
+        extractionDetails:
+          extraction.extractionDetails,
+  
+        missingFields:
+          missingFields.map(
+            (item) => ({
+              id: item.id,
+              label: item.label,
+              type: item.type,
+  
+              options: clone(
+                item.options || []
+              )
+            })
+          ),
+  
+        clarificationQuestions,
+  
+        priority,
+  
+        businessImpact:
+          describeBusinessImpact(
+            expandedText,
+            template
+          ),
+  
+        duplicateTickets:
+          findPossibleDuplicates(
+            expandedText,
+            template
+          ),
+  
+        knowledgeArticles:
+          buildKnowledgeRecommendations(
+            template
+          ),
+  
+        requestPlan:
+          buildRequestPlan(
+            template,
+            priority,
+            previousResult.confidence
+          )
+      };
+  
+      result.response =
+        responseMessage(result);
+  
+      return result;
+    }
+  
+    window.MasterFlowRequestEngine = {
+      analyze,
+      continueAnalysis,
+      isShippingStopped
+    };
+  })();

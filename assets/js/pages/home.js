@@ -136,7 +136,175 @@
       ? result.template.priority
       : "P3 - Normal";
   }
+  function updateUnderstanding(result) {
+    const setText = (id, value) => {
+      const element =
+        document.getElementById(id);
 
+      if (element) {
+        element.textContent = value;
+      }
+    };
+
+    const progress =
+      document.getElementById(
+        "understandingProgress"
+      );
+
+    if (
+      !result ||
+      !result.template
+    ) {
+      setText(
+        "understandingPercent",
+        "0%"
+      );
+
+      setText(
+        "understandingRequest",
+        "Not determined yet"
+      );
+
+      setText(
+        "understandingRoute",
+        "Pending"
+      );
+
+      setText(
+        "understandingPriority",
+        "Pending"
+      );
+
+      setText(
+        "understandingConfidence",
+        "0%"
+      );
+
+      setText(
+        "understandingCollected",
+        "0 of 0"
+      );
+
+      setText(
+        "understandingNeeded",
+        "Describe your request"
+      );
+
+      setText(
+        "understandingImpact",
+        "MasterFlow will summarize the impact here."
+      );
+
+      if (progress) {
+        progress.style.width = "0%";
+
+        progress.parentElement
+          ?.setAttribute(
+            "aria-valuenow",
+            "0"
+          );
+      }
+
+      return;
+    }
+
+    const routing =
+      result.routingReadiness || {
+        answered: 0,
+        total: 0,
+        score: 0
+      };
+
+    const work =
+      result.workReadiness || {
+        answered: 0,
+        total: 0,
+        score: 0
+      };
+
+    const answered =
+      Number(
+        routing.answered || 0
+      ) +
+      Number(
+        work.answered || 0
+      );
+
+    const total =
+      Number(
+        routing.total || 0
+      ) +
+      Number(
+        work.total || 0
+      );
+
+    const percentage = total
+      ? Math.round(
+          (answered / total) * 100
+        )
+      : 100;
+
+    const nextQuestion =
+      result
+        .clarificationQuestions?.[0];
+
+    setText(
+      "understandingPercent",
+      `${percentage}%`
+    );
+
+    setText(
+      "understandingRequest",
+      result.template.name
+    );
+
+    setText(
+      "understandingRoute",
+      result.requestPlan?.queue ||
+      result.template.queue
+    );
+
+    setText(
+      "understandingPriority",
+      result.priority?.value ||
+      result.requestPlan?.priority ||
+      result.template.priority
+    );
+
+    setText(
+      "understandingConfidence",
+      `${result.confidence || 0}%`
+    );
+
+    setText(
+      "understandingCollected",
+      `${answered} of ${total}`
+    );
+
+    setText(
+      "understandingNeeded",
+      nextQuestion
+        ? nextQuestion.label
+        : "Complete"
+    );
+
+    setText(
+      "understandingImpact",
+      result.businessImpact ||
+      "Business impact will be confirmed during review."
+    );
+
+    if (progress) {
+      progress.style.width =
+        `${percentage}%`;
+
+      progress.parentElement
+        ?.setAttribute(
+          "aria-valuenow",
+          String(percentage)
+        );
+    }
+  }
   function renderInterpretation(result) {
     const template = result.template;
 
@@ -201,7 +369,7 @@
       .filter(
         (option) => !/shipping/i.test(option)
       )
-      .slice(0, 5);
+      .slice(0, 8);
   }
 
   function askClarification(result) {
@@ -209,33 +377,58 @@
       result.clarificationQuestions[0];
 
     const options =
-      questionOptions(pendingQuestion);
+      questionOptions(
+        pendingQuestion
+      );
 
-    const optionButtons = options.length
-      ? `<div class="chat-actions">${options
-          .map(
-            (option) =>
-              `<button
-                class="btn btn-secondary btn-sm"
-                type="button"
-                data-clarification-answer="${escape(
-                  option
-                )}"
-              >${escape(option)}</button>`
-          )
-          .join("")}</div>`
-      : "";
+    const optionButtons =
+      options.length
+        ? `<div class="chat-actions">${options
+            .map(
+              (option) =>
+                `<button
+                  class="btn btn-secondary btn-sm"
+                  type="button"
+                  data-clarification-answer="${escape(
+                    option
+                  )}"
+                >${escape(option)}</button>`
+            )
+            .join("")}</div>`
+        : "";
+
+    const heading =
+      pendingQuestion.kind ===
+      "diagnostic"
+        ? "One question to make this work-ready"
+        : "One detail to route this correctly";
+
+    const reason =
+      pendingQuestion.why
+        ? `<small class="muted">
+             Why I’m asking:
+             ${escape(
+               pendingQuestion.why
+             )}
+           </small>`
+        : "";
 
     appendBubble(
       "ai",
-      `<strong>One detail needed</strong>
+      `<strong>${escape(
+        heading
+      )}</strong>
+
        <div>${escape(
          pendingQuestion.question
        )}</div>
+
+       ${reason}
        ${optionButtons}`
     );
 
     askInput.value = "";
+
     askInput.placeholder =
       pendingQuestion.question;
 
@@ -250,7 +443,10 @@
     );
 
     setStatus(
-      "● Waiting for your answer"
+      pendingQuestion.requiredFor ===
+      "work"
+        ? "● Gathering work details"
+        : "● Gathering routing details"
     );
 
     askInput.focus();
@@ -318,6 +514,33 @@
 
         fieldAnswers:
           result.fieldAnswers || {},
+
+        diagnosticAnswers:
+          result.diagnosticAnswers || {},
+
+        diagnosticDetails:
+          result.diagnosticDetails || {},
+
+        routingReadiness:
+          result.routingReadiness,
+
+        workReadiness:
+          result.workReadiness,
+
+        receiverBrief:
+          result.receiverBrief,
+
+        evidence:
+          result.evidence || [],
+
+        assistantResponse:
+          result.assistantResponse,
+
+        reportingData:
+          result.reportingData,
+
+        clarificationCount:
+          result.clarificationCount || 0,
 
         priorityRecommendation:
           result.priority,
@@ -421,7 +644,7 @@
 
     chatBody.innerHTML = "";
     openChat();
-
+updateUnderstanding(result);
     appendBubble(
       "user",
       escape(text)
@@ -490,15 +713,45 @@
       activeAnalysis = null;
       pendingQuestion = null;
       resetComposer();
+      updateUnderstanding(result);
       UI.openCriticalDialog();
       return;
     }
 
     activeAnalysis = result;
 
+    updateUnderstanding(result);
+
+    if (
+      result.answerAccepted === false
+    ) {
+      appendBubble(
+        "ai",
+        `<strong>I need a more exact location.</strong>
+
+         <div>${escape(
+           result.validationMessage ||
+           "Please provide the exact station, line, door, or printer."
+         )}</div>`
+      );
+
+      if (
+        result.clarificationQuestions.length
+      ) {
+        askClarification(result);
+      }
+
+      return;
+    }
+
     appendBubble(
       "ai",
-      "<strong>Thanks — I added that.</strong>"
+      `<strong>Got it.</strong>
+
+       <div>
+         I added ${escape(answer)}
+         for ${escape(question.label)}.
+       </div>`
     );
 
     if (
@@ -516,6 +769,7 @@
 
     chatBody.innerHTML = "";
     chatPanel.classList.remove("open");
+        updateUnderstanding(null);
 
     askInput.value = "";
 
