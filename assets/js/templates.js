@@ -201,6 +201,151 @@
    * request-engine.js will decide what is already known
    * and which question should be asked next.
    */
+    /*
+   * Common shorthand employees may enter.
+   *
+   * These phrases help MasterFlow identify the correct
+   * request type before the diagnostic conversation begins.
+   */
+  const classificationAliases = {
+    "printer-ink": [
+      "printer supply",
+      "need toner",
+      "toner low",
+      "low toner",
+      "out of toner",
+      "toner out",
+      "need ink",
+      "ink low",
+      "low ink",
+      "out of ink",
+      "ink out",
+      "need ribbon",
+      "ribbon low",
+      "out of ribbon",
+      "replace cartridge",
+      "printer cartridge"
+    ],
+
+    "printer-connectivity": [
+      "paper jam",
+      "printer jam",
+      "jammed printer",
+      "paper feed problem",
+      "printer won't feed",
+      "printer will not feed",
+      "printer offline",
+      "printer disconnected",
+      "printer won't turn on",
+      "printer will not turn on",
+      "no power to printer",
+      "printer no power",
+      "print job stuck",
+      "job stuck in queue",
+      "nothing prints",
+      "printer error",
+      "printer error message",
+      "blank print",
+      "prints blank",
+      "faded print",
+      "streaked print",
+      "poor print quality"
+    ],
+
+    "equipment-out-of-service": [
+      "forklift issue",
+      "forklift broken",
+      "forklift won't start",
+      "forklift will not start",
+      "forklift won't move",
+      "forklift will not move",
+      "forklift won't lift",
+      "forklift will not lift",
+      "pallet jack issue",
+      "pallet jack broken",
+      "conveyor issue",
+      "conveyor broken",
+      "mhe issue",
+      "mhe broken",
+      "equipment leaking",
+      "forklift leaking",
+      "brake problem",
+      "steering problem",
+      "battery problem",
+      "charging problem"
+    ],
+
+    "corrective-action-warehouse": [
+      "wrong part",
+      "wrong quantity",
+      "missing quantity",
+      "packaging error",
+      "wrong packaging",
+      "wrong label",
+      "labeling error",
+      "shipping error",
+      "warehouse error",
+      "damaged shipment",
+      "damaged product",
+      "customer complaint",
+      "repeat issue",
+      "recurring issue"
+    ],
+
+    "stock-check-phoenix": [
+      "stock check",
+      "check stock",
+      "inventory check",
+      "inventory verification",
+      "date code check",
+      "check date codes",
+      "verify date codes",
+      "quantity check",
+      "verify quantity",
+      "count inventory",
+      "condition check",
+      "packaging check",
+      "verify packaging",
+      "check part"
+    ],
+
+    "systems-intake": [
+      "oms issue",
+      "oms not updating",
+      "oms not refreshing",
+      "merp issue",
+      "merp not updating",
+      "syq issue",
+      "edi issue",
+      "api issue",
+      "website issue",
+      "system issue",
+      "system not updating",
+      "system not refreshing",
+      "access request",
+      "data correction",
+      "system enhancement"
+    ],
+
+    "facilities-hvac": [
+      "hvac issue",
+      "ac issue",
+      "ac broken",
+      "air conditioning broken",
+      "heater issue",
+      "heating issue",
+      "too hot",
+      "too cold",
+      "no airflow",
+      "vent not working",
+      "vent leaking",
+      "hvac leak",
+      "burning smell from vent",
+      "temperature issue"
+    ],
+
+    "general-triage": []
+  };
   const diagnosticProfiles = {
     "printer-ink": {
       requiredForWork: [
@@ -1031,17 +1176,113 @@
     return String(text || "").toLowerCase().replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, " ").trim();
   }
 
-  function score(text, template) {
-    const input = normalize(text);
-    if (!input || !template.keywords.length) return 0;
-    return template.keywords.reduce((total, phrase) => {
-      const normalizedPhrase = normalize(phrase);
-      if (input.includes(normalizedPhrase)) return total + 14 + normalizedPhrase.split(" ").length * 3;
-      const matches = normalizedPhrase.split(" ").filter((word) => word.length > 2 && input.includes(word)).length;
-      return total + matches * 2;
-    }, 0);
+  function exactPhraseScore(
+    input,
+    phrases,
+    baseWeight
+  ) {
+    return (phrases || []).reduce(
+      (total, phrase) => {
+        const normalizedPhrase =
+          normalize(phrase);
+
+        if (!normalizedPhrase) {
+          return total;
+        }
+
+        if (
+          input.includes(
+            normalizedPhrase
+          )
+        ) {
+          const wordCount =
+            normalizedPhrase
+              .split(" ")
+              .filter(Boolean)
+              .length;
+
+          return (
+            total +
+            baseWeight +
+            wordCount * 4
+          );
+        }
+
+        return total;
+      },
+      0
+    );
   }
 
+  function score(text, template) {
+    const input = normalize(text);
+
+    if (!input) {
+      return 0;
+    }
+
+    /*
+     * Existing template keyword scoring supports
+     * normal descriptions and partial word matches.
+     */
+    const keywordScore =
+      (template.keywords || []).reduce(
+        (total, phrase) => {
+          const normalizedPhrase =
+            normalize(phrase);
+
+          if (!normalizedPhrase) {
+            return total;
+          }
+
+          if (
+            input.includes(
+              normalizedPhrase
+            )
+          ) {
+            return (
+              total +
+              14 +
+              normalizedPhrase
+                .split(" ")
+                .length *
+                3
+            );
+          }
+
+          const matches =
+            normalizedPhrase
+              .split(" ")
+              .filter(
+                (word) =>
+                  word.length > 2 &&
+                  input.includes(word)
+              )
+              .length;
+
+          return total + matches * 2;
+        },
+        0
+      );
+
+    /*
+     * Classification aliases receive a stronger score
+     * because they represent known employee shorthand.
+     */
+    const aliasScore =
+      exactPhraseScore(
+        input,
+        classificationAliases[
+          template.id
+        ] || [],
+        40
+      );
+
+    return (
+      keywordScore +
+      aliasScore
+    );
+  }
   function classify(text) {
     const templates = getAll().filter((template) => template.id !== "general-triage");
     const ranked = templates.map((template) => ({ template, score: score(text, template) })).sort((a, b) => b.score - a.score);

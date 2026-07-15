@@ -50,24 +50,24 @@
       title: "Request submitted",
       subtitle: "Your request was created and routed."
     },
-    "assigned-work": {
-      href: "assigned-work.html",
-      label: "My assigned work",
-      icon: "◆",
-      group: "Operations",
-      roles: ["receiver", "admin"],
-      title: "My assigned work",
-      subtitle: "Tickets, approvals, and freight decisions assigned to you."
-    },
-    "ticket-queues": {
-      href: "ticket-queues.html",
-      label: "Ticket queues",
-      icon: "☷",
-      group: "Operations",
-      roles: ["receiver", "admin"],
-      title: "Ticket queues",
-      subtitle: "Manage ownership, priority, backlog, and SLA risk."
-    },
+"assigned-work": {
+  href: "assigned-work.html",
+  label: "Work Center",
+  icon: "◆",
+  group: "Operations",
+  roles: ["receiver", "admin"],
+  title: "Work Center",
+  subtitle: "Prioritized personal and team ticket work in one place."
+},
+"ticket-queues": {
+  href: "ticket-queues.html",
+  label: "Legacy ticket queues",
+  icon: "☷",
+  group: null,
+  roles: ["receiver", "admin"],
+  title: "Opening Work Center",
+  subtitle: "Ticket queues are now part of the unified Work Center."
+},
     freight: {
       href: "freight-optimization.html",
       label: "Freight optimization",
@@ -178,7 +178,7 @@
 
   function safeLanding(role) {
     if (role === "admin") return pages.admin.href;
-    if (role === "receiver") return pages["ticket-queues"].href;
+    if (role === "receiver") return pages["assigned-work"].href;
     return pages.home.href;
   }
 
@@ -200,7 +200,7 @@
         .map(([id, definition]) => {
           let badge = "";
           if (id === "my-tickets" && pageCounts.requesterTickets) badge = `<span class="nav-badge">${pageCounts.requesterTickets}</span>`;
-          if (id === "ticket-queues" && pageCounts.queueTickets) badge = `<span class="nav-badge">${pageCounts.queueTickets}</span>`;
+          if (id === "assigned-work" && pageCounts.queueTickets) badge = `<span class="nav-badge">${pageCounts.queueTickets}</span>`;
           if (id === "freight" && pageCounts.freight) badge = `<span class="nav-badge">${pageCounts.freight}</span>`;
           return `<a class="nav-link${id === currentPage ? " active" : ""}" href="${definition.href}" data-page-link="${id}"><span class="nav-icon" aria-hidden="true">${definition.icon}</span><span>${definition.label}</span>${badge}</a>`;
         }).join("");
@@ -414,35 +414,652 @@
     });
   }
 
-  function openTicketDialog(ticket) {
-    let dialog = document.getElementById("sharedTicketDialog");
-    if (!dialog) {
-      document.body.insertAdjacentHTML("beforeend", `
-        <dialog id="sharedTicketDialog" aria-labelledby="sharedTicketTitle">
-          <div class="dialog-header"><div><h2 id="sharedTicketTitle"></h2><p id="sharedTicketSubtitle"></p></div><button class="close-button" type="button" data-close-ticket-dialog aria-label="Close">×</button></div>
-          <div class="dialog-body" id="sharedTicketBody"></div>
-          <div class="dialog-footer"><button class="btn btn-secondary" type="button" data-close-ticket-dialog>Close</button></div>
-        </dialog>`);
-      dialog = document.getElementById("sharedTicketDialog");
-      dialog.querySelectorAll("[data-close-ticket-dialog]").forEach((button) => button.addEventListener("click", () => dialog.close()));
+function openTicketDialog(ticket) {
+  const ticketId = ticket.id;
+  let dialog = document.getElementById("sharedTicketDialog");
+
+  if (!dialog) {
+    document.body.insertAdjacentHTML("beforeend", `
+      <dialog
+        id="sharedTicketDialog"
+        class="ticket-workspace-dialog"
+        aria-labelledby="sharedTicketTitle"
+      >
+        <div class="dialog-header">
+          <div>
+            <h2 id="sharedTicketTitle"></h2>
+            <p id="sharedTicketSubtitle"></p>
+          </div>
+          <button
+            class="close-button"
+            type="button"
+            data-close-ticket-dialog
+            aria-label="Close"
+          >×</button>
+        </div>
+
+        <div class="dialog-body" id="sharedTicketBody"></div>
+
+        <div class="dialog-footer">
+          <button
+            class="btn btn-secondary"
+            type="button"
+            data-close-ticket-dialog
+          >Close</button>
+        </div>
+      </dialog>
+    `);
+
+    dialog = document.getElementById("sharedTicketDialog");
+
+    dialog
+      .querySelectorAll("[data-close-ticket-dialog]")
+      .forEach((button) => {
+        button.addEventListener("click", () => dialog.close());
+      });
+  }
+
+  const canManage = ["receiver", "admin"].includes(getRole());
+
+  function isClosed(item) {
+    return ["Resolved", "Closed", "Cancelled"].includes(item.status);
+  }
+
+  function isWaiting(item) {
+    return /waiting on requester|waiting on employee/i.test(
+      String(item.status || "")
+    );
+  }
+
+  function minutesUntilDue(item) {
+    const due = new Date(item.slaDueAt).getTime();
+    if (!Number.isFinite(due)) return Number.POSITIVE_INFINITY;
+    return Math.round((due - Date.now()) / 60000);
+  }
+
+  function dueLabel(item) {
+    const minutes = minutesUntilDue(item);
+
+    if (!Number.isFinite(minutes)) return "No SLA due time";
+    if (isClosed(item)) return "SLA complete";
+    if (minutes < -60) {
+      return `SLA overdue by ${Math.ceil(Math.abs(minutes) / 60)} hours`;
     }
-    document.getElementById("sharedTicketTitle").textContent = `${ticket.number} - ${ticket.title}`;
-    document.getElementById("sharedTicketSubtitle").textContent = `${ticket.queue} · ${ticket.status}`;
-    const history = (ticket.history || []).slice().reverse().map((item) => `<div class="list-row"><div><div class="list-title">${escapeHtml(item.text)}</div><div class="list-meta"><span>${escapeHtml(formatDate(item.at))}</span></div></div></div>`).join("");
+    if (minutes < 0) return `SLA overdue by ${Math.abs(minutes)} minutes`;
+    if (minutes <= 60) return `SLA due in ${Math.max(1, minutes)} minutes`;
+    if (minutes < 1440) return `SLA due in ${Math.ceil(minutes / 60)} hours`;
+
+    return `SLA due ${formatDate(item.slaDueAt)}`;
+  }
+
+  function statusSummary(item) {
+    const assignee = item.assignee && item.assignee !== "Unassigned"
+      ? item.assignee
+      : item.queue;
+
+    if (isClosed(item)) {
+      return "This request is complete. Reopen it only if the issue is still occurring.";
+    }
+
+    if (String(item.priority).startsWith("P1")) {
+      return "A critical operational process is affected. Immediate response and frequent updates are required.";
+    }
+
+    if (isWaiting(item)) {
+      return `${assignee} is waiting for information from ${item.requester} before work can continue.`;
+    }
+
+    if (item.status === "Approval required") {
+      return "An authorized decision is required before this request can continue.";
+    }
+
+    if (item.status === "Triage") {
+      return "Business Enablement must confirm the correct receiving queue and owner.";
+    }
+
+    if (!item.assignee || item.assignee === "Unassigned") {
+      return "This request has not been assigned to an owner yet.";
+    }
+
+    if (item.status === "New") {
+      return `${item.assignee} owns this request and should begin the initial review.`;
+    }
+
+    if (item.status === "In progress") {
+      return `${item.assignee} is actively working this request.`;
+    }
+
+    return `${assignee} currently owns this request.`;
+  }
+
+  function nextAction(item) {
+    if (isClosed(item)) {
+      return "No action is required. Review the resolution or reopen the request if needed.";
+    }
+
+    if (String(item.priority).startsWith("P1")) {
+      return "Acknowledge the incident, confirm the affected process and users, and begin the critical-response workflow now.";
+    }
+
+    if (item.status === "Approval required") {
+      return "Review the request details and record an approval or rejection.";
+    }
+
+    if (item.status === "Triage") {
+      return "Confirm the correct queue, select an owner, and move the request into active work.";
+    }
+
+    if (isWaiting(item)) {
+      return "Review the latest question. Send a reminder if the requester has not responded within the expected time.";
+    }
+
+    if (!item.assignee || item.assignee === "Unassigned") {
+      return "Assign the request to yourself or the best available team member.";
+    }
+
+    if (item.status === "New") {
+      return "Review the request, validate the supplied information, and start work.";
+    }
+
+    if (item.status === "In progress") {
+      return "Continue troubleshooting, document the result, and post the next update.";
+    }
+
+    return "Review the request and complete the next available action.";
+  }
+
+  function businessImpact(item) {
+    const details = item.details || {};
+    const category = String(item.category || "").toLowerCase();
+    const title = String(item.title || "").toLowerCase();
+
+    if (String(item.priority).startsWith("P1")) {
+      const process = details.process || "A critical warehouse process";
+      const affected = details.affectedUsers
+        ? ` ${details.affectedUsers} are reported as affected.`
+        : "";
+      return `${process} is blocked at ${item.location}.${affected}`;
+    }
+
+    if (isWaiting(item)) {
+      return "Resolution is paused because support is waiting for information from the requester.";
+    }
+
+    if (item.status === "Approval required") {
+      return "The requested work or purchase cannot continue until an authorized decision is recorded.";
+    }
+
+    if (category.includes("printer") || title.includes("printer")) {
+      return `Printing or label-production work at ${item.location} may be delayed until this request is resolved.`;
+    }
+
+    if (category.includes("access") || title.includes("access")) {
+      return "The requester may be unable to use a required system, report, or business process.";
+    }
+
+    if (category.includes("performance") || title.includes("laptop")) {
+      return "The employee can continue working, but device performance may reduce productivity.";
+    }
+
+    return `This active request affects work at ${item.location || "the reported location"}.`;
+  }
+
+  function missingInformation(item) {
+    const historyText = (item.history || [])
+      .map((entry) => entry.text)
+      .join(" ")
+      .toLowerCase();
+
+    if (isWaiting(item)) {
+      if (/printer label|printer asset|printer name|ip address/.test(historyText)) {
+        return ["Printer name, asset number, or IP address"];
+      }
+      if (/manager approval|director approval|approval/.test(historyText)) {
+        return ["Required approval decision"];
+      }
+      return ["Requester response to the latest question"];
+    }
+
+    if (!item.assignee || item.assignee === "Unassigned") {
+      return ["Assigned owner"];
+    }
+
+    if (item.status === "Triage") {
+      return ["Confirmed receiving queue", "Assigned owner"];
+    }
+
+    return ["No blocking information detected"];
+  }
+
+  function suggestedResolution(item) {
+    const text = `${item.title} ${item.category} ${item.description}`.toLowerCase();
+
+    if (text.includes("printer")) {
+      return [
+        "Confirm the printer name, asset number, or IP address.",
+        "Verify the printer is online and reachable from the workstation.",
+        "Reconnect or remap the printer and test a label or print job."
+      ];
+    }
+
+    if (text.includes("laptop") || text.includes("performance")) {
+      return [
+        "Confirm whether one application or the whole device is affected.",
+        "Review CPU, memory, storage, and startup applications.",
+        "Restart, apply approved updates, and retest the reported workflow."
+      ];
+    }
+
+    if (text.includes("access") || text.includes("report")) {
+      return [
+        "Confirm the exact system, report, and role required.",
+        "Validate the business reason and required approval.",
+        "Apply the approved access and confirm the requester can sign in."
+      ];
+    }
+
+    if (String(item.priority).startsWith("P1") || text.includes("manifest")) {
+      return [
+        "Confirm the outage scope and whether all stations are affected.",
+        "Check the shared system or service before troubleshooting individual stations.",
+        "Post frequent updates and confirm recovery with Operations before resolving."
+      ];
+    }
+
+    if (item.status === "Approval required") {
+      return [
+        "Verify the request details and business justification.",
+        "Record the approval decision and notify the requester."
+      ];
+    }
+
+    return [
+      "Review the requester description and most recent activity.",
+      "Confirm any missing facts before changing the ticket status.",
+      "Document the action taken and the verified outcome."
+    ];
+  }
+
+  function progressMarkup(item) {
+    const status = String(item.status || "").toLowerCase();
+    const assigned = Boolean(item.assignee && item.assignee !== "Unassigned");
+    const workingReached =
+      status.includes("in progress") ||
+      status.includes("waiting") ||
+      status.includes("approval") ||
+      status.includes("resolved") ||
+      status.includes("closed");
+    const resolved = isClosed(item);
+
+    const stages = [
+      { label: "Submitted", state: "complete" },
+      { label: "Routed", state: item.queue ? "complete" : "active" },
+      { label: "Assigned", state: assigned ? "complete" : "active" },
+      {
+        label: isWaiting(item) ? "Waiting" : "Working",
+        state: workingReached ? (resolved ? "complete" : "active") : "pending"
+      },
+      { label: "Resolved", state: resolved ? "complete" : "pending" }
+    ];
+
+    return stages
+      .map((stage) => `
+        <div class="ticket-progress-step ${stage.state}">
+          <span>${stage.state === "complete" ? "✓" : ""}</span>
+          <small>${escapeHtml(stage.label)}</small>
+        </div>
+      `)
+      .join("");
+  }
+
+  function historyMarkup(item) {
+    const history = (item.history || []).slice().reverse();
+
+    if (!history.length) {
+      return '<p class="muted small">No activity has been recorded yet.</p>';
+    }
+
+    return history
+      .map((entry) => `
+        <div class="ticket-activity-item">
+          <span class="ticket-activity-dot"></span>
+          <div>
+            <strong>${escapeHtml(entry.text)}</strong>
+            <small>${escapeHtml(formatDate(entry.at))}</small>
+          </div>
+        </div>
+      `)
+      .join("");
+  }
+
+  function renderTicket(currentTicket) {
+    const missing = missingInformation(currentTicket);
+    const suggestions = suggestedResolution(currentTicket);
+    const closed = isClosed(currentTicket);
+    const unassigned =
+      !currentTicket.assignee || currentTicket.assignee === "Unassigned";
+
+    document.getElementById("sharedTicketTitle").textContent =
+      `${currentTicket.number} - ${currentTicket.title}`;
+
+    document.getElementById("sharedTicketSubtitle").textContent =
+      `${currentTicket.queue} · ${currentTicket.status}`;
+
+    const managementPanel = canManage
+      ? `
+        <section class="ticket-action-panel">
+          <div>
+            <h3>Work this ticket</h3>
+            <p>Add an update, ask the requester a question, or record the resolution.</p>
+          </div>
+
+          <textarea
+            class="textarea"
+            id="ticketUpdateText"
+            placeholder="Write an update, question, or resolution note..."
+          ></textarea>
+
+          <div class="ticket-action-buttons">
+            ${unassigned && !closed ? `
+              <button class="btn btn-secondary btn-sm" type="button" data-ticket-action="assign">
+                Assign to me
+              </button>
+            ` : ""}
+
+            ${!closed && currentTicket.status !== "In progress" ? `
+              <button class="btn btn-primary btn-sm" type="button" data-ticket-action="start">
+                Start work
+              </button>
+            ` : ""}
+
+            ${!closed ? `
+              <button class="btn btn-secondary btn-sm" type="button" data-ticket-action="request-info">
+                Request information
+              </button>
+
+              <button class="btn btn-soft btn-sm" type="button" data-ticket-action="resolve">
+                Mark resolved
+              </button>
+            ` : `
+              <button class="btn btn-secondary btn-sm" type="button" data-ticket-action="reopen">
+                Reopen ticket
+              </button>
+            `}
+
+            <button class="btn btn-ghost btn-sm" type="button" data-ticket-action="post">
+              Post update
+            </button>
+          </div>
+        </section>
+      `
+      : `
+        <section class="ticket-action-panel">
+          <div>
+            <h3>Reply or add information</h3>
+            <p>Your update stays in this request conversation.</p>
+          </div>
+
+          <textarea
+            class="textarea"
+            id="ticketUpdateText"
+            placeholder="Add a reply, answer, or update..."
+          ></textarea>
+
+          <div class="ticket-action-buttons">
+            <button class="btn btn-primary btn-sm" type="button" data-ticket-action="requester-reply">
+              Send update
+            </button>
+          </div>
+        </section>
+      `;
+
     document.getElementById("sharedTicketBody").innerHTML = `
-      <div class="detail-grid">
-        <div class="detail-cell"><small>Priority</small><strong><span class="badge ${priorityClass(ticket.priority)}">${escapeHtml(ticket.priority)}</span></strong></div>
-        <div class="detail-cell"><small>Assigned team</small><strong>${escapeHtml(ticket.queue)}</strong></div>
-        <div class="detail-cell"><small>Assignee</small><strong>${escapeHtml(ticket.assignee || "Unassigned")}</strong></div>
-        <div class="detail-cell"><small>Requester</small><strong>${escapeHtml(ticket.requester)}</strong></div>
-        <div class="detail-cell"><small>Location</small><strong>${escapeHtml(ticket.location)}</strong></div>
-        <div class="detail-cell"><small>SLA due</small><strong>${escapeHtml(formatDate(ticket.slaDueAt))}</strong></div>
+      <section class="ticket-status-hero ${
+        String(currentTicket.priority).startsWith("P1")
+          ? "is-critical"
+          : isWaiting(currentTicket)
+            ? "is-waiting"
+            : closed
+              ? "is-complete"
+              : "is-active"
+      }">
+        <div>
+          <span class="badge ${statusClass(currentTicket.status)}">
+            ${escapeHtml(currentTicket.status)}
+          </span>
+          <h3>${escapeHtml(statusSummary(currentTicket))}</h3>
+          <p>${escapeHtml(dueLabel(currentTicket))}</p>
+        </div>
+      </section>
+
+      <div class="ticket-progress" aria-label="Ticket progress">
+        ${progressMarkup(currentTicket)}
       </div>
-      <div class="dialog-section"><h3>Description</h3><p class="small muted">${escapeHtml(ticket.description || "No description provided.")}</p></div>
-      <div class="dialog-section"><h3>Routing explanation</h3><div class="notice notice-info"><div><strong>${escapeHtml(ticket.classificationConfidence)}% classification confidence</strong><p>${escapeHtml(ticket.routingReason)}</p></div></div></div>
-      <div class="dialog-section"><h3>Timeline</h3><div class="list">${history || '<p class="muted small">No history yet.</p>'}</div></div>`;
+
+      <div class="ticket-workspace-grid">
+        <div class="ticket-workspace-main">
+          <section class="ticket-panel">
+            <div class="ticket-panel-label">AI summary</div>
+            <h3>${escapeHtml(currentTicket.title)}</h3>
+            <p>
+              ${escapeHtml(
+                currentTicket.description || "No description was provided."
+              )}
+            </p>
+            <div class="ticket-summary-meta">
+              <span><strong>Location:</strong> ${escapeHtml(currentTicket.location)}</span>
+              <span><strong>Requester:</strong> ${escapeHtml(currentTicket.requester)}</span>
+              <span><strong>Current owner:</strong> ${escapeHtml(currentTicket.assignee || "Unassigned")}</span>
+            </div>
+          </section>
+
+          <section class="ticket-next-action-card">
+            <div class="ticket-panel-label">Recommended next action</div>
+            <strong>${escapeHtml(nextAction(currentTicket))}</strong>
+          </section>
+
+          ${managementPanel}
+
+          <section class="ticket-panel">
+            <div class="ticket-panel-label">Activity and conversation</div>
+            <div class="ticket-activity-list">
+              ${historyMarkup(currentTicket)}
+            </div>
+          </section>
+        </div>
+
+        <aside class="ticket-workspace-side">
+          <section class="ticket-side-card ticket-impact-card">
+            <div class="ticket-panel-label">Business impact</div>
+            <p>${escapeHtml(businessImpact(currentTicket))}</p>
+          </section>
+
+          <section class="ticket-side-card">
+            <div class="ticket-panel-label">Still needed</div>
+            <ul class="ticket-info-list">
+              ${missing
+                .map((item) => `<li>${escapeHtml(item)}</li>`)
+                .join("")}
+            </ul>
+          </section>
+
+          <section class="ticket-side-card">
+            <div class="ticket-panel-label">Suggested resolution path</div>
+            <ol class="ticket-suggested-list">
+              ${suggestions
+                .map((item) => `<li>${escapeHtml(item)}</li>`)
+                .join("")}
+            </ol>
+          </section>
+
+          <details class="ticket-technical-details">
+            <summary>Technical and routing details</summary>
+
+            <div class="detail-grid">
+              <div class="detail-cell">
+                <small>Priority</small>
+                <strong>
+                  <span class="badge ${priorityClass(currentTicket.priority)}">
+                    ${escapeHtml(currentTicket.priority)}
+                  </span>
+                </strong>
+              </div>
+
+              <div class="detail-cell">
+                <small>Assigned team</small>
+                <strong>${escapeHtml(currentTicket.queue)}</strong>
+              </div>
+
+              <div class="detail-cell">
+                <small>Assignee</small>
+                <strong>${escapeHtml(currentTicket.assignee || "Unassigned")}</strong>
+              </div>
+
+              <div class="detail-cell">
+                <small>Requester</small>
+                <strong>${escapeHtml(currentTicket.requester)}</strong>
+              </div>
+
+              <div class="detail-cell">
+                <small>Location</small>
+                <strong>${escapeHtml(currentTicket.location)}</strong>
+              </div>
+
+              <div class="detail-cell">
+                <small>SLA due</small>
+                <strong>${escapeHtml(formatDate(currentTicket.slaDueAt))}</strong>
+              </div>
+            </div>
+
+            <div class="notice notice-info mt-12">
+              <div>
+                <strong>${escapeHtml(currentTicket.classificationConfidence)}% classification confidence</strong>
+                <p>${escapeHtml(currentTicket.routingReason)}</p>
+              </div>
+            </div>
+          </details>
+        </aside>
+      </div>
+    `;
+
+    const body = document.getElementById("sharedTicketBody");
+    const noteInput = body.querySelector("#ticketUpdateText");
+
+    body.querySelectorAll("[data-ticket-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.dataset.ticketAction;
+        const note = noteInput ? noteInput.value.trim() : "";
+        let updated = null;
+
+        if (action === "assign") {
+          updated = Store.updateTicket(
+            ticketId,
+            {
+              assignee: Store.CURRENT_USER.name,
+              status: currentTicket.status === "New"
+                ? "In progress"
+                : currentTicket.status
+            },
+            `Assigned to ${Store.CURRENT_USER.name}.`
+          );
+        }
+
+        if (action === "start") {
+          updated = Store.updateTicket(
+            ticketId,
+            {
+              assignee: unassigned
+                ? Store.CURRENT_USER.name
+                : currentTicket.assignee,
+              status: "In progress"
+            },
+            `${Store.CURRENT_USER.name} started work on the ticket.`
+          );
+        }
+
+        if (action === "request-info") {
+          if (!note) {
+            showToast("Write the question or missing information before requesting a response.");
+            noteInput.focus();
+            return;
+          }
+
+          updated = Store.updateTicket(
+            ticketId,
+            { status: "Waiting on requester" },
+            `${Store.CURRENT_USER.name} requested information: ${note}`
+          );
+        }
+
+        if (action === "resolve") {
+          updated = Store.updateTicket(
+            ticketId,
+            { status: "Resolved" },
+            note
+              ? `${Store.CURRENT_USER.name} resolved the ticket: ${note}`
+              : `${Store.CURRENT_USER.name} resolved the ticket.`
+          );
+        }
+
+        if (action === "reopen") {
+          updated = Store.updateTicket(
+            ticketId,
+            {
+              status: "In progress",
+              assignee: unassigned
+                ? Store.CURRENT_USER.name
+                : currentTicket.assignee
+            },
+            `${Store.CURRENT_USER.name} reopened the ticket.`
+          );
+        }
+
+        if (action === "post") {
+          if (!note) {
+            showToast("Write an update before posting.");
+            noteInput.focus();
+            return;
+          }
+
+          updated = Store.updateTicket(
+            ticketId,
+            {},
+            `${Store.CURRENT_USER.name}: ${note}`
+          );
+        }
+
+        if (action === "requester-reply") {
+          if (!note) {
+            showToast("Write a reply before sending.");
+            noteInput.focus();
+            return;
+          }
+
+          updated = Store.updateTicket(
+            ticketId,
+            {
+              status: isWaiting(currentTicket)
+                ? "In progress"
+                : currentTicket.status
+            },
+            `${Store.CURRENT_USER.name} replied: ${note}`
+          );
+        }
+
+        if (!updated) return;
+
+        showToast(`${updated.number} updated.`);
+        renderTicket(updated);
+      });
+    });
+  }
+
+  renderTicket(Store.getTicket(ticketId) || ticket);
+
+  if (!dialog.open) {
     dialog.showModal();
   }
+}
 
   const layoutReady = renderLayout();
 
