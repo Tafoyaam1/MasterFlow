@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta
     name="description"
-    content="MasterFlow Work Center for prioritized personal and team ticket management."
+    content="MasterFlow Work Center for prioritized receiver and team ticket operations."
   >
   <title>MasterFlow - Work Center</title>
   <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="stylesheet" href="assets/css/WORK_CENTER_APPEND.css">
 </head>
 
 <body class="workspace-page work-center-page" data-page="assigned-work">
@@ -16,15 +17,16 @@
     <main>
       <div class="page-heading">
         <div>
-          <div class="eyebrow">Ticket receiver workspace</div>
+          <div class="eyebrow">Receiver operations</div>
           <h1>Work Center</h1>
           <p>
-            One place to see what needs your attention, what your team owns,
-            what is unassigned, and what may miss SLA.
+            Understand what matters, begin work, communicate, and resolve tickets
+            without searching through raw ticket fields.
           </p>
         </div>
 
         <div class="page-actions">
+          <a class="btn btn-secondary" href="ticket-queues.html">Queue Manager</a>
           <button class="btn btn-danger" type="button" data-open-critical>
             + Create P1 incident
           </button>
@@ -38,32 +40,26 @@
               <span>Recommended</span>
               <strong id="count-recommended">0</strong>
             </button>
-
             <button class="work-view-button" type="button" data-work-view="mine" role="tab" aria-selected="false">
               <span>My work</span>
               <strong id="count-mine">0</strong>
             </button>
-
             <button class="work-view-button" type="button" data-work-view="team" role="tab" aria-selected="false">
               <span>Team work</span>
               <strong id="count-team">0</strong>
             </button>
-
             <button class="work-view-button" type="button" data-work-view="unassigned" role="tab" aria-selected="false">
               <span>Needs assignment</span>
               <strong id="count-unassigned">0</strong>
             </button>
-
             <button class="work-view-button" type="button" data-work-view="risk" role="tab" aria-selected="false">
               <span>SLA risk</span>
               <strong id="count-risk">0</strong>
             </button>
-
             <button class="work-view-button" type="button" data-work-view="waiting" role="tab" aria-selected="false">
               <span>Waiting on requester</span>
               <strong id="count-waiting">0</strong>
             </button>
-
             <button class="work-view-button" type="button" data-work-view="completed" role="tab" aria-selected="false">
               <span>Completed</span>
               <strong id="count-completed">0</strong>
@@ -77,14 +73,12 @@
           <div>
             <h2>Work these next</h2>
             <p>
-              MasterFlow recommends the next tickets using operational impact,
-              SLA timing, ownership, and readiness.
+              Ranked by operational impact, SLA timing, ownership, and whether
+              the receiver can act now.
             </p>
           </div>
-
           <span class="badge badge-teal">AI prioritized</span>
         </div>
-
         <div class="card-body">
           <div class="work-list" id="recommendedWorkList" aria-live="polite"></div>
         </div>
@@ -94,14 +88,10 @@
         <div class="card-header">
           <div>
             <h2>Team queue health</h2>
-            <p>
-              Select a queue to narrow the Work Center to that team.
-            </p>
+            <p>Select a queue to narrow the Work Center to that team.</p>
           </div>
-
           <span class="badge badge-blue">Authorized queues</span>
         </div>
-
         <div class="card-body">
           <div class="queue-grid" id="workCenterQueueCards" aria-label="Team queue summary"></div>
         </div>
@@ -116,7 +106,6 @@
               ownership, and readiness.
             </p>
           </div>
-
           <span class="badge badge-gray" id="visibleTicketCount">0 shown</span>
         </div>
 
@@ -131,13 +120,8 @@
                 aria-label="Search Work Center tickets"
               >
             </div>
-
             <div class="toolbar-right">
-              <select
-                class="control"
-                id="workCenterQueueFilter"
-                aria-label="Filter by queue"
-              >
+              <select class="control" id="workCenterQueueFilter" aria-label="Filter by queue">
                 <option value="all">All authorized queues</option>
               </select>
             </div>
@@ -147,7 +131,6 @@
 
           <details class="work-table-details">
             <summary>Show detailed ticket table</summary>
-
             <div class="table-wrap">
               <table>
                 <thead>
@@ -170,8 +153,127 @@
     </main>
   </div>
 
+  <dialog id="receiverTicketDialog" class="receiver-ticket-dialog" aria-labelledby="receiverTicketTitle">
+    <div class="dialog-header receiver-dialog-header">
+      <div>
+        <div class="receiver-dialog-badges">
+          <span class="badge badge-gray" id="receiverStatusBadge">Status</span>
+          <span class="badge badge-gray" id="receiverRoutingBadge">Routing readiness</span>
+          <span class="badge badge-gray" id="receiverWorkBadge">Work readiness</span>
+        </div>
+        <h2 id="receiverTicketTitle">Ticket</h2>
+        <p id="receiverTicketSubtitle"></p>
+      </div>
+      <button class="close-button" type="button" data-close-receiver-ticket aria-label="Close">x</button>
+    </div>
+
+    <div class="dialog-body receiver-dialog-body">
+      <section class="receiver-brief-hero">
+        <div>
+          <div class="eyebrow">Receiver Brief</div>
+          <h3 id="receiverBriefHeadline">What the receiver needs to know</h3>
+          <p id="receiverBriefSummary"></p>
+        </div>
+        <div class="receiver-brief-owner">
+          <small>Current owner</small>
+          <strong id="receiverCurrentOwner">Unassigned</strong>
+          <span id="receiverSlaLabel">No SLA set</span>
+        </div>
+      </section>
+
+      <div class="receiver-brief-grid">
+        <section class="receiver-brief-section">
+          <h3>Requested outcome</h3>
+          <p id="receiverRequestedOutcome"></p>
+        </section>
+        <section class="receiver-brief-section">
+          <h3>Observed situation</h3>
+          <p id="receiverObservedSituation"></p>
+        </section>
+        <section class="receiver-brief-section">
+          <h3>Scope and business impact</h3>
+          <p id="receiverScopeImpact"></p>
+        </section>
+        <section class="receiver-brief-section">
+          <h3>Safety or containment</h3>
+          <p id="receiverSafetyContainment"></p>
+        </section>
+        <section class="receiver-brief-section receiver-brief-wide">
+          <h3>Key identifiers</h3>
+          <div class="receiver-identifier-list" id="receiverIdentifiers"></div>
+        </section>
+        <section class="receiver-brief-section receiver-brief-wide">
+          <h3>Information gaps</h3>
+          <div id="receiverInformationGaps"></div>
+        </section>
+      </div>
+
+      <section class="receiver-first-action">
+        <div>
+          <small>Suggested first action</small>
+          <strong id="receiverSuggestedAction"></strong>
+        </div>
+        <button class="btn btn-ghost btn-sm" type="button" id="receiverFeedbackButton">
+          Suggest a flow improvement
+        </button>
+      </section>
+
+      <section class="receiver-action-panel" id="receiverActionPanel">
+        <div class="receiver-action-header">
+          <div>
+            <h3>Work the ticket</h3>
+            <p>Choose an action and add a clear update when communication is required.</p>
+          </div>
+        </div>
+
+        <div class="receiver-assignment-row">
+          <button class="btn btn-primary btn-sm" type="button" id="receiverClaimTicket">Claim ticket</button>
+          <select class="select" id="receiverAssigneeSelect" aria-label="Assign ticket to a team member"></select>
+          <button class="btn btn-secondary btn-sm" type="button" id="receiverAssignTicket">Assign ticket</button>
+          <button class="btn btn-secondary btn-sm" type="button" id="receiverStartWork">Start work</button>
+        </div>
+
+        <div class="field mt-12">
+          <label for="receiverActionNote">Update or resolution note</label>
+          <textarea
+            class="textarea"
+            id="receiverActionNote"
+            placeholder="Add the information the requester or team needs to move the ticket forward."
+          ></textarea>
+        </div>
+
+        <div class="receiver-action-buttons">
+          <button class="btn btn-secondary btn-sm" type="button" id="receiverRequestInfo">Request more information</button>
+          <button class="btn btn-secondary btn-sm" type="button" id="receiverAddUpdate">Add update</button>
+          <button class="btn btn-primary btn-sm" type="button" id="receiverResolveTicket">Resolve ticket</button>
+          <button class="btn btn-secondary btn-sm" type="button" id="receiverReopenTicket" hidden>Reopen ticket</button>
+        </div>
+      </section>
+
+      <section class="receiver-timeline-section">
+        <div class="receiver-section-heading">
+          <div>
+            <h3>Timeline</h3>
+            <p>Communication, ownership, and status changes remain in one history.</p>
+          </div>
+        </div>
+        <div class="receiver-timeline" id="receiverTimeline"></div>
+      </section>
+
+      <details class="receiver-technical-details">
+        <summary>Show routing and technical details</summary>
+        <div class="detail-grid mt-12" id="receiverTechnicalDetails"></div>
+      </details>
+    </div>
+
+    <div class="dialog-footer">
+      <button class="btn btn-secondary" type="button" data-close-receiver-ticket>Close</button>
+    </div>
+  </dialog>
+
   <script src="assets/js/store.js" defer></script>
   <script src="assets/js/layout.js" defer></script>
+  <script src="assets/js/pages/receiver-feedback.js" defer></script>
   <script src="assets/js/pages/assigned-work.js" defer></script>
 </body>
 </html>

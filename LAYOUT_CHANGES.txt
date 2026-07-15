@@ -1,0 +1,74 @@
+MASTERFLOW PARALLEL WORKSTREAM - RECEIVER AND QUEUE OPERATIONS
+
+This patch intentionally edits only the files authorized for this workstream.
+Requester intake, routing, templates, store logic, layout.js, admin pages, and reporting pages were not changed.
+
+MODIFIED FILES
+
+1. assigned-work.html
+   - Keeps the unified Work Center views for Recommended, My Work, Team Work,
+     Needs Assignment, SLA Risk, Waiting on Requester, and Completed.
+   - Adds a receiver-specific ticket workspace dialog.
+   - Adds Receiver Brief sections for requested outcome, observed situation,
+     scope and business impact, key identifiers, safety or containment,
+     information gaps, and suggested first action.
+   - Adds routing-readiness and work-readiness badges.
+   - Adds receiver controls for claim, assign, start work, request information,
+     add update, resolve, and reopen.
+   - Adds a direct Queue Manager link.
+   - Loads WORK_CENTER_APPEND.css and receiver-feedback.js.
+
+2. assets/js/pages/assigned-work.js
+   - Preserves prioritized work cards and smart views.
+   - Ranks work by impact, SLA timing, ownership, and readiness.
+   - Opens the new receiver ticket workspace instead of the shared raw-field dialog.
+   - Supports claim ticket, assign ticket, start work, request more information,
+     add update, resolve, and reopen using the existing Store.updateTicket API.
+   - Renders a unified timeline of communication, ownership, and status changes.
+   - Uses receiver-feedback.js to generate the Receiver Brief and readiness badges.
+   - Opens a resolver feedback form using the required localStorage contract.
+
+3. ticket-queues.html
+   - Replaces the legacy redirect with a Queue Manager workspace.
+   - Shows queue volume, SLA risk, unassigned work, and work-readiness at arrival.
+   - Shows queue health, team workload, common information gaps,
+     waiting-on-requester tickets, and coverage or ownership gaps.
+   - Shows and submits a recommended request-flow improvement.
+   - Links back to the Work Center.
+
+4. assets/css/WORK_CENTER_APPEND.css
+   - Contains all Work Center, Receiver Brief, receiver action, timeline,
+     feedback, and Queue Manager styles for this workstream.
+   - Is loaded after styles.css so no shared stylesheet edit is required.
+   - Includes responsive behavior for desktop, tablet, and mobile layouts.
+
+5. assets/js/pages/receiver-feedback.js (new)
+   - Stores feedback in localStorage under masterflowFlowFeedbackV1.
+   - Uses the exact feedback item contract supplied by the workstream owner.
+   - Provides shared Receiver Brief analysis and work-readiness evaluation.
+   - Powers Queue Manager metrics, information-gap analysis, workload,
+     coverage analysis, waiting-on-requester visibility, and flow recommendations.
+   - Lets resolvers and queue managers submit improvement evidence.
+
+6. LAYOUT_CHANGES.txt
+   - Documents every modified file and the integration boundary.
+
+FILES INTENTIONALLY NOT MODIFIED
+
+- index.html
+- assets/js/pages/home.js
+- assets/js/request-engine.js
+- assets/js/request-engine-v2.js
+- assets/js/templates.js
+- assets/js/pages/smart-request.js
+- assets/js/store.js
+- assets/js/layout.js
+- admin pages
+- reporting pages
+
+INTEGRATION NOTE
+
+layout.js is intentionally untouched. The existing navigation can continue to expose
+assigned-work.html and ticket-queues.html. The assigned-work page labels itself Work Center,
+and ticket-queues.html labels itself Queue Manager. A final integration owner may rename
+navigation labels later, but that is outside this parallel workstream.

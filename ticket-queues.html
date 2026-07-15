@@ -3,13 +3,182 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="0; url=assigned-work.html">
-  <title>MasterFlow - Opening Work Center</title>
-  <script>
-    window.location.replace("assigned-work.html");
-  </script>
+  <meta
+    name="description"
+    content="MasterFlow Queue Manager for workload, readiness, SLA, and request-flow improvement visibility."
+  >
+  <title>MasterFlow - Queue Manager</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="stylesheet" href="assets/css/WORK_CENTER_APPEND.css">
 </head>
-<body>
-  <p>Opening <a href="assigned-work.html">MasterFlow Work Center</a>...</p>
+
+<body class="workspace-page queue-manager-page" data-page="ticket-queues">
+  <div class="content-shell">
+    <main>
+      <div class="page-heading">
+        <div>
+          <div class="eyebrow">Queue operations</div>
+          <h1>Queue Manager</h1>
+          <p>
+            See team workload, ticket readiness, ownership gaps, and the request-flow
+            changes most likely to improve resolution speed.
+          </p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="assigned-work.html">Back to Work Center</a>
+          <button class="btn btn-danger" type="button" data-open-critical>+ Create P1 incident</button>
+        </div>
+      </div>
+
+      <section class="kpi-grid queue-manager-kpis" aria-label="Queue Manager summary">
+        <div class="kpi">
+          <div class="kpi-label">Active queue volume</div>
+          <div class="kpi-value" id="qmActiveVolume">0</div>
+          <div class="kpi-meta">Across visible queues</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">SLA risk</div>
+          <div class="kpi-value" id="qmSlaRisk">0</div>
+          <div class="kpi-meta warn">Due or overdue within one hour</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Unassigned work</div>
+          <div class="kpi-value" id="qmUnassigned">0</div>
+          <div class="kpi-meta warn">Needs an owner</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Work-ready at arrival</div>
+          <div class="kpi-value" id="qmReadinessRate">0%</div>
+          <div class="kpi-meta good">Ready without follow-up</div>
+        </div>
+      </section>
+
+      <section class="grid grid-2 mt-18">
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Queue health</h2>
+              <p>Volume, readiness, ownership, waiting work, and SLA exposure by queue.</p>
+            </div>
+            <span class="badge badge-blue">Live prototype data</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Queue</th>
+                  <th>Active</th>
+                  <th>Ready</th>
+                  <th>Waiting</th>
+                  <th>Unassigned</th>
+                  <th>SLA risk</th>
+                </tr>
+              </thead>
+              <tbody id="qmQueueBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Recommended request-flow improvement</h2>
+              <p>MasterFlow turns repeated receiver friction into a configurable improvement.</p>
+            </div>
+            <span class="badge badge-teal">Feedback loop</span>
+          </div>
+          <div class="card-body">
+            <div class="queue-recommendation" id="qmRecommendation"></div>
+            <button class="btn btn-primary mt-18" type="button" id="qmSubmitRecommendation">
+              Submit recommendation
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid grid-2 mt-18">
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Team workload</h2>
+              <p>Active load and risk by current owner.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Owner</th>
+                  <th>Active</th>
+                  <th>High impact</th>
+                  <th>Waiting</th>
+                  <th>SLA risk</th>
+                </tr>
+              </thead>
+              <tbody id="qmWorkloadBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Coverage and ownership gaps</h2>
+              <p>Queues with unassigned work or too few active owners.</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="manager-insight-list" id="qmCoverageList"></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid grid-2 mt-18">
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Common information gaps</h2>
+              <p>Missing facts that create repeat follow-up for receivers.</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="manager-insight-list" id="qmGapList"></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2>Waiting on requester</h2>
+              <p>Tickets currently blocked by missing employee information.</p>
+            </div>
+            <span class="badge badge-amber" id="qmWaitingCount">0 waiting</span>
+          </div>
+          <div class="card-body">
+            <div class="manager-ticket-list" id="qmWaitingList"></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="card mt-18">
+        <div class="card-header">
+          <div>
+            <h2>Improvement feedback</h2>
+            <p>Resolver and manager observations stored under the shared feedback contract.</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" type="button" id="qmAddFeedback">
+            Add feedback
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="feedback-list" id="qmFeedbackList"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/js/store.js" defer></script>
+  <script src="assets/js/layout.js" defer></script>
+  <script src="assets/js/pages/receiver-feedback.js" defer></script>
 </body>
 </html>
